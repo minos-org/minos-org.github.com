@@ -1,0 +1,23 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+	<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+	<link rel="stylesheet" type="text/css" media="screen" title="Default" href="/assets/css/find.css" />
+	<title>New Tab</title>
+  <script type="text/javascript">
+    function FocusOnInput()
+    {
+         document.getElementById("Input").focus();
+    }
+  </script>
+</head>
+<body onload="FocusOnInput()">
+  <div id="container"></div>
+  <!--<p id="pages"></p>-->
+  <img alt="minos" src="/assets/img/minos.png">
+  <form class="search" action="http://www.google.com/search" method="get">
+    <input type="text" name="q" id="Input" value="" />
+    <button style="display:none;" type="submit">Search</button>
+  </form>
+</body>
+</html>
