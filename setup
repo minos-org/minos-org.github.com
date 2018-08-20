@@ -511,6 +511,7 @@ _virt_what() { #check for virtualization systems, returns technology used
 }
 
 _tweak_apt_get() {
+    printf "\033[1A" #override previous line
     _printfl "Tweaking apt-get"
     printf "%s\\n" '    $ printf "%s\n" "Dir::Ignore-Files-Silently:: "(.save|.distUpgrade|.backup_rep)$";" > /tmp/minos-apt-99ignoresave'
     printf "%s"    'Dir::Ignore-Files-Silently:: "(.save|.distUpgrade|.backup_rep)$";' > /tmp/minos-apt-99ignoresave
@@ -565,9 +566,8 @@ _desktop() {
 
     _printfs "Installing packages ..."
     #_cmd_animate DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y minos-desktop
-    _cmd_verbose \
-        DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends \
-        -y --force-yes minos-desktop
+    _cmd_verbose export DEBIAN_FRONTEND=noninteractive
+    _cmd_verbose apt-get install --no-install-recommends -y --force-yes minos-desktop
     #[ -d "${HOME}"/.gvfs ] && fusermount -u "${HOME}"/.gvfs
     _recover_original_reps
 
