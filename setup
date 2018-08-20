@@ -1,19 +1,16 @@
 #!/bin/sh
 
-trap _cleanup INT QUIT #trap ctrl-c
+VERSION="2018.08.19-13:44"
+LINER="$ sudo sh <(wget -qO- minos.io/s)"
 
-updates="http://minos.io/s"
-liner="$ sh <(wget -qO- minos.io/s)"
+################################################################################
+# Colors #######################################################################
+################################################################################
 
-if [ -z "${1}" ]; then
-    mode="core"; cx="\b>"
-else
-    case "${1}" in
-        d|desktop) mode="desktop"; dx="\b>";;
-           b|boot) mode="boot";    bx="\b>";;
-                *) mode="core";    cx="\b>";;
-    esac
-fi
+DEFAULT="$(printf "\\033[0;39m")"
+WHITE_BOLD="$(printf "\\033[1m")"
+WHITE_BG="$(printf "\\033[7m")"
+RED="$(printf "\\033[0;31m")"
 
 ################################################################################
 # General functions ############################################################
@@ -70,96 +67,30 @@ _basename() {
     printf "%s\\n" "${_basename_var_name}"
 }
 
-_get_root_passwd() { #get sudo's password, define $sudopwd and $sudocmd
-    if [ ! X"${LOGNAME}" = X"root" ]; then
-        printf "%s\\n" "Detecting user ${LOGNAME} (non-root) ..."
-        printf "%s\\n" "Checking if sudo is available ..."
-
-        if command -v "sudo" >/dev/null 2>&1; then
-            sudo -K
-
-            if [ -n "${sudopwd}" ]; then
-                # password check
-                _getroot_var_test="$(printf "%s\\n" "${sudopwd}" | sudo -S ls 2>&1)"
-                _getroot_var_status="${?}"
-                _getroot_var_not_allowed="$(printf "%s" "${_getroot_var_test}" | grep -i "sudoers")"
-
-                if [ -n "${_getroot_var_not_allowed}" ]; then
-                    printf "%s %s\\n" "You're not allowed to use sudo," \
-                           "get in contact with your local administrator"
-                    exit
-                fi
-
-                if [ X"${_getroot_var_status}" != X"0" ]; then
-                    sudopwd=""
-                    printf "%s\\n" "Incorrect preseed password"
-                    exit
-                else
-                    sudocmd="sudo -S"
-                fi
-                printf "%s\\n" "    - all set ..."
-                return
-            fi
-
-            i=0 ; while [ "${i}" -lt "3" ]; do
-                i="$(expr "${i}" + 1)"
-                printf "%s" "   - enter sudo password: "
-                stty -echo
-                read sudopwd
-                stty echo
-
-                # password check
-                _getroot_var_test="$(printf "%s\\n" "${sudopwd}" | sudo -S ls 2>&1)"
-                _getroot_var_status="${?}"
-                _getroot_var_not_allowed="$(printf "%s" "${_getroot_var_test}" | \
-                                         grep -i "sudoers")"
-
-                if [ -n "${_getroot_var_not_allowed}" ]; then
-                    printf "\\n%s %s\\n" "You're not allowed to use sudo," \
-                    "get in contact with your local administrator"
-                    exit
-                fi
-
-                printf "\\n"
-                if [ X"${_getroot_var_status}" != X"0" ]; then
-                    sudopwd=""
-                else
-                    sudocmd="sudo -S"
-                    break
-                fi
-            done
-
-            if [ -z "${sudopwd}" ]; then
-                printf "%s\\n" "Failed authentication"
-                exit
-            fi
-        else
-            printf "%s %s\\n" "You're not root and sudo isn't available." \
-            "Please run this script as root!"
-            exit
-        fi
-    fi
+_is_root() {
+    [ X"$(whoami)" = X"root" ]
 }
 
 _printfl() { #print lines
-    _printfl_var_max_len="80"
+    command -v "tput" >/dev/null 2>&1 && _printfl_var_max_len="$(tput cols)"
+    _printfl_var_max_len="${_printfl_var_max_len:-80}"
     if [ -n "${1}" ]; then
         _printfl_var_word_len="$(expr "${#1}" + 2)"
         _printfl_var_sub="$(expr "${_printfl_var_max_len}" - "${_printfl_var_word_len}")"
         _printfl_var_half="$(expr "${_printfl_var_sub}" / 2)"
         _printfl_var_other_half="$(expr "${_printfl_var_sub}" - "${_printfl_var_half}")"
-        printf "%b" "\033[1m" #white strong
+        printf "%b" "${WHITE_BOLD}"
         printf '%*s' "${_printfl_var_half}" '' | tr ' ' -
-        printf "%b" "\033[7m" #white background
+        printf "%b" "${WHITE_BG}" #white background
         printf " %s " "${1}"
-        printf "%b" "\033[0m\033[1m" #white strong
+        printf "%b" "${DEFAULT}${WHITE_BOLD}"
         printf '%*s' "${_printfl_var_other_half}" '' | tr ' ' -
-        printf "%b" "\033[0m" #back to normal
+        printf "%b" "${DEFAULT}" #back to normal
         printf "\\n"
     else
-        printf "%b" "\033[1m" #white strong
+        printf "%b" "${WHITE_BOLD}"
         printf '%*s' "${_printfl_var_max_len}" '' | tr ' ' -
-        printf "%b" "\033[0m" #back to normal
+        printf "%b" "${DEFAULT}"
         printf "\\n"
     fi
 }
@@ -176,31 +107,45 @@ _printfc() { #print commands
 
 _unprintf() { #unprint sentence
     [ -z "${1}" ] && return 1
-    _unprintf_var_word_len="$(expr ${#1})"
-    _unprintf_var_i="0"
-    while [ "${_unprintf_var_i}" -lt "$(expr "${_unprintf_var_word_len}")" ]; do
-        _unprintf_var_i="$(expr "${_unprintf_var_i}" + 1)"
-        printf "%b" "\b"
+    printf "\\r"
+    for i in $(seq 0 "${#1}"); do printf " "  ; done
+    printf "\\r"
+}
+
+_printf_sleep() {
+    [ -z "${2}" ] && return 1
+    _ps__string="${1} "
+    _ps__secs="${2}"
+
+    while [ "${_ps__secs}" -gt "0" ]; do
+        _unprintf "${_ps__string}"
+        printf "%s\\n" "${_ps__string}" | sed "s:X:${_ps__secs}:g" | tr -d '\n'
+        sleep 1 || {
+            _unprintf "${_ps__string}"
+            return 1
+        }
+        _ps__secs="$((_ps__secs - 1))"
     done
+    _unprintf "${_ps__string}"
 }
 
 _distro() { #return distro name in lower case
-    _distro_var_DIST_INFO="/etc/lsb-release"
-    if [ -r "${_distro_var_DIST_INFO}" ]; then
-        . "${_distro_var_DIST_INFO}"
+    _distro__DIST_INFO="/etc/lsb-release"
+    if [ -r "${_distro__DIST_INFO}" ]; then
+        . "${_distro__DIST_INFO}"
     fi
 
     if [ -z "${DISTRIB_ID}" ]; then
-        _distro_var_DISTRIB_ID="Unknown";
+        _distro__DISTRIB_ID="Unknown";
         if [ -r /etc/debian_version ]; then
-            _distro_var_DISTRIB_ID="Debian"
+            _distro__DISTRIB_ID="Debian"
         elif [ -r /etc/issue ]; then
-            _distro_var_DISTRIB_ID="$(awk '{print $1}' /etc/issue.net)"
-            if [ X"${_distro_var_DISTRIB_ID}" = X"Ubuntu" ]; then
-                _distro_var_DISTRIB_ID="Ubuntu"
+            _distro__DISTRIB_ID="$(awk '{print $1}' /etc/issue.net)"
+            if [ X"${_distro__DISTRIB_ID}" = X"Ubuntu" ]; then
+                _distro__DISTRIB_ID="Ubuntu"
             fi
         fi
-        printf "%s\\n" "${_distro_var_DISTRIB_ID}" | tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz'
+        printf "%s\\n" "${_distro__DISTRIB_ID}" | tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz'
     else
         printf "%s\\n" "${DISTRIB_ID}" | tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz'
     fi
@@ -231,45 +176,56 @@ _hooks() {
 }
 
 _get_release() {
-    if command -v "lsb_release" 1>/dev/null 2>&1; then
-        _getrelease_var_release="$(lsb_release -s -c)"
+    if [ -n "${RELEASE}" ]; then
+        _grelease__release="${RELEASE}"
+    elif command -v "lsb_release" 1>/dev/null 2>&1; then
+        _grelease__release="$(lsb_release -cs)"
     else
         if [ -f /etc/apt/sources.list ]; then
-            _getrelease_var_release="$(awk -F" " '/^deb .*/ {print $3; exit}' /etc/apt/sources.list)"
+            _grelease__release="$(awk -F" " '/^deb .*/ {print $3; exit}' /etc/apt/sources.list)"
         fi
     fi
 
-    printf "%s\\n" "${_getrelease_var_release}"
+    printf "%s\\n" "${_grelease__release}"
+}
+
+_get_release_number() {
+    case "${1}" in
+        trusty) _grn__number="14.04" ;;
+        xenial) _grn__number="16.04" ;;
+        bionic) _grn__number="18.04" ;;
+    esac
+    printf "%s\\n" "${_grn__number}"
 }
 
 _fetch_file() {
-    [ -z "${1}" ] && return 1 || _fetchfile_var_url="${1}"
-    [ -z "${2}" ] && _fetchfile_var_output="" || _fetchfile_var_output="${2}"
-    _fetchfile_var_max_retries="10"
+    [ -z "${1}" ] && return 1 || _ffile__url="${1}"
+    [ -z "${2}" ] && _ffile__output="" || _ffile__output="${2}"
+    _ffile__max_tries="10"
 
-    _fetchfile_var_i="0"
-    while [ "${_fetchfile_var_i}" -lt "${_fetchfile_var_max_retries}" ]; do
-        _fetchfile_var_i="$(expr "${_fetchfile_var_i}" + 1)"
+    _ffile__i="0"
+    while [ "${_ffile__i}" -lt "${_ffile__max_tries}" ]; do
+        _ffile__i="$((_ffile__i + 1))"
 
-        if [ -z "${_fetchfile_var_output}" ]; then
-            _waitfor wget "${_fetchfile_var_url}"
+        if [ -z "${_ffile__output}" ]; then
+            _cmd_animate wget "${_ffile__url}"
         else
-            _waitfor wget "${_fetchfile_var_url}" -O "${_fetchfile_var_output}"
+            _cmd_animate wget "${_ffile__url}" -O "${_ffile__output}"
         fi
 
-        if [ -n "${_fetchfile_var_output}" ] && [ -f "${_fetchfile_var_output}" ]; then
+        if [ -n "${_ffile__output}" ] && [ -f "${_ffile__output}" ]; then
             break
-        elif [ -z "${_fetchfile_var_output}"]; then
-            if [ -f "./$(_basename "${_fetchfile_var_url}")" ] || [ -f index.html ]; then
+        elif [ -z "${_ffile__output}"]; then
+            if [ -f "./$(_basename "${_ffile__url}")" ] || [ -f index.html ]; then
                 break
             fi
         else
-            if [ "${_fetchfile_var_i}" -eq "$(expr "${_fetchfile_var_max_retries}" - 1)" ]; then
+            if [ "${_ffile__i}" -eq "$((_ffile__max_tries - 1))" ]; then
                 printf "%s" "Impossible to retrive files"
                 exit 1
             else
-                printf "[-] %s" "${_fetchfile_var_url} seems down, retrying in ${_fetchfile_var_i} minute(s) ..."
-                sleep "$(expr "${_fetchfile_var_i}" \* 60)"
+                printf "[-] %s" "${_ffile__url} seems down, retrying in ${_ffile__i} minute(s) ..."
+                sleep "$(expr "${_ffile__i}" \* 60)"
                 printf "\\n"
             fi
         fi
@@ -283,14 +239,14 @@ _exists_apt_proxy() { #look for apt proxies, return 0 on sucess, 1 otherwise
 
 _die() { #print a stacktrace with a msg, exits with 1
     if [ -n "${BASH}" ]; then
-        _die_var_frame="0"
-        while caller "${_die_var_frame}"; do
-            _die_var_frame="$(expr "${_die_var_frame}" + 1)"
+        _die__frame="0"
+        while caller "${_die__frame}"; do
+            _die__frame="$(expr "${_die__frame}" + 1)"
         done
     fi
 
-    printf "%s\\n" "${*}"
-    exit
+    printf "%b\\n" "${RED}${*}${DEFAULT}" >&2
+    exit 1
 }
 
 _seconds2human() {
@@ -338,10 +294,10 @@ _apt_update() {
         if [ "${_aupdate__diff}" -lt "${_aupdate__cache_seconds}" ]; then
             _printfs "apt-get update was recently used ($(_seconds2human "${_aupdate__diff}") ago), skipping ..."
         else
-            _waitforsudo apt-get update
+            _cmd_animate apt-get update
         fi
     else
-        _waitforsudo apt-get update
+        _cmd_animate apt-get update
     fi
 }
 
@@ -362,30 +318,10 @@ _cmd() { #print and execute a command, exit on fail
 _cmd_verbose() {
     [ -z "${1}" ] && return 1
     printf "%s \\n" "    $ ${*}"
-    $@
+    $@ || _die "there was an error with the above command, exiting ..."
 }
 
-_cmdsudo() { #print && execute a command, exit on fail
-    [ -z "${1}" ] && return 1
-    printf "%s \\n" "    $ sudo ${*}"
-    _cmdsudo_var_output="$(printf "%s\\n" "${sudopwd}" | ${sudocmd} sh -c "eval ${*}" 2>&1)"
-    _cmdsudo_var_status="${?}"
-    if [ X"${_cmdsudo_var_status}" != X"0" ]; then
-        printf "> %s:%s\\n" "${*}" "${_cmdsudo_var_output}"
-        printf "\\n"
-        exit "${_cmdsudo_var_status}"
-    else
-        return "${_cmdsudo_var_status}";
-    fi
-}
-
-_cmdsudo_verbose() {
-    [ -z "${1}" ] && return 1
-    printf "%s \\n" "    $ sudo ${*}"
-    printf "%s\\n" "${sudopwd}" | ${sudocmd} sh -c "eval ${*}"
-}
-
-_waitfor() { #print, execute and wait for a command to finish
+_cmd_animate() { #print, execute and wait for a command to finish
     [ -z "${1}" ] && return 1
     printf "%s " "    $ ${@} ..."
     eval "${@}" >/dev/null 2>&1 &
@@ -393,20 +329,8 @@ _waitfor() { #print, execute and wait for a command to finish
     _animate_while "${1}"
 }
 
-_waitforsudo() { #print, execute and wait for a command to finish
-    [ -z "${1}" ] && return 1
-    printf "%s " "    $ sudo ${@} ..."
-    printf "%s\\n" "${sudopwd}" | ${sudocmd} sh -c "eval ${*}" >/dev/null 2>&1 &
-    sleep 1s
-    if [ X"${1}" = X"DEBIAN_FRONTEND=noninteractive" ]; then
-        _animate_while "${2}"
-    else
-        _animate_while "${1}"
-    fi
-}
-
 _supported() { #retun 0 on a supported system, 1 otherwise
-    supported="[Debian|Ubuntu]"
+    SUPPORTED="[Debian|Ubuntu]"
     case "$(_distro)" in
         ubuntu|debian) return 0 ;;
     esac
@@ -417,18 +341,19 @@ _install_apt_proxy() {
     _printfs "Setting up an apt-get proxy ..."
 
     _apt_update 3600
-    _waitforsudo apt-get install --no-install-recommends -y avahi-utils
+    _cmd_animate apt-get install --no-install-recommends -y avahi-utils
 
     if _exists_apt_proxy; then
-        _remotesetup_var_apt_proxy_server="$(avahi-browse -a -t -r -p | awk -F";" '/^=.*apt-cacher-ng/ {print $8}')"
-        _printfs "exists an apt-get proxy at ${_remotesetup_var_apt_proxy_server}, setting up the client ..."
-        _waitforsudo apt-get install --no-install-recommends -y squid-deb-proxy-client
+        _iap__apt_proxy_server="$(avahi-browse -a -t -r -p | awk -F";" '/^=.*apt-cacher-ng/ {print $8}')"
+        _printfs "exists an apt-get proxy at ${_iap__apt_proxy_server}, setting up the client ..."
+        _cmd_animate apt-get install --no-install-recommends -y squid-deb-proxy-client
     else
         _printfs "no apt-get proxy found, installing one locally ..."
-        _waitforsudo apt-get install --no-install-recommends -y squid-deb-proxy-client apt-cacher-ng
+        _cmd_animate apt-get install --no-install-recommends -y squid-deb-proxy-client apt-cacher-ng
 
         if [ ! -f /etc/avahi/services/apt-cacher-ng.service ]; then
-            cat > /tmp/etc##avahi##services##apt-cacher-ng.service  << 'E=O=F'
+            _cmd mkdir -p /etc/avahi/services/
+            cat > /etc/avahi/services/apt-cacher-ng.service << 'E=O=F'
 <?xml version="1.0" standalone='no'?>
 <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
 <service-group>
@@ -439,43 +364,44 @@ _install_apt_proxy() {
  </service>
 </service-group>
 E=O=F
-            _cmdsudo mkdir -p /etc/avahi/services/
-            _cmdsudo mv /tmp/etc##avahi##services##apt-cacher-ng.service /etc/avahi/services/apt-cacher-ng.service
         fi
 
         if [ -d "${HOME}"/misc/deb-proxy/apt-cacher-ng/ ]; then
             _printfs "Exporting files ..."
-            _cmdsudo rm -rf /var/cache/apt-cacher-ng
-            _cmdsudo ln -s "${HOME}"/misc/deb-proxy/apt-cacher-ng/ /var/cache/apt-cacher-ng
+            _cmd rm -rf /var/cache/apt-cacher-ng
+            _cmd ln -s "${HOME}"/misc/deb-proxy/apt-cacher-ng/ /var/cache/apt-cacher-ng
         fi
     fi
 }
 
 _header() {
     _printfl "Minos Setup"
-    printf "%b\\n" "\033[1m Updates:\033[0m  ${updates}"
+    printf "%b\\n" "${WHITE_BOLD}Version: ${DEFAULT}${VERSION}"
     printf "\\n"
-
-    printf "%b\\n" "\033[1m  ${cx} Core                   : \033[0m${liner}"
-    printf "%b\\n" "\033[1m  ${dx} Desktop (includes Core): \033[0m${liner} d"
-    #printf "%b\\n" "\033[1m  ${bx} Boot:                    \033[0m${liner} b"
-
-    [ "$(id -u)" != "0" ] && _printfl
+    printf "%b\\n" "${WHITE_BOLD} ${cx} Core         ${DEFAULT}${LINER} core"
+    printf "%b\\n" "${WHITE_BOLD} ${dx} Desktop      ${DEFAULT}${LINER} desktop"
+    printf "%b\\n""${WHITE_BOLD} ${lcx} Live Core    ${DEFAULT}${LINER} live core    /dev/sdX username passwd [/dev/sdaY] "
+    printf "%b\\n""${WHITE_BOLD} ${ldx} Live Desktop ${DEFAULT}${LINER} live desktop /dev/sdX username passwd [/dev/sdaY]"
+    printf "\\n\\n"
+    printf "%s\\n" "  /dev/sdX → /     mount point"
+    printf "%s\\n" "  /dev/sdY → /home mount point (optional)"
+    printf "\\n"
+    printf "%s\\n" "  --release  [14.04|16.04|18.04]"
+    _printfl
 }
 
 _die_sendmail() { #apt-get purge doesn't kill sendmail instances
-    _diesendmail_var_pid="$(ps -aef | awk '$0 ~ "sendmail" {if ($0 !~ "awk") print $2}')"
-    if [ -n "${_diesendmail_var_pid}" ]; then
+    _dsendmail__pid="$(ps -aef | awk '$0 ~ "sendmail" {if ($0 !~ "awk") print $2}')"
+    if [ -n "${_dsendmail__pid}" ]; then
         _printfs 'die sendmail, die!!'
-        _cmdsudo kill "${_diesendmail_var_pid}"
+        _cmd kill "${_dsendmail__pid}"
     fi
 }
 
 _cleanup() {
-    [ "${_cleanup_var_init}" ] && return
-    _cleanup_var_init="done"
+    [ "${_cleanup__init}" ] && return
+    _cleanup__init="done"
     stty echo
-    [ -z "${sudopwd}" ] && return
     printf "\\n"
     _printfl "Cleanup"
     _recover_original_reps
@@ -483,26 +409,26 @@ _cleanup() {
 }
 
 _backup_original_reps() { #create a backup of /etc/apt/sources.list.d/* files
-    for _backupreps_var_file in /etc/apt/sources.list.d/*.list; do
+    for _boreps__file in /etc/apt/sources.list.d/*.list; do
         break
     done
-    [ -f "${_backupreps_var_file}" ] && _printfs "disabling temporaly non standard repos ..."
-    for _backupreps_var_file in /etc/apt/sources.list.d/*.list; do
-        if [ -f "${_backupreps_var_file}" ]; then
-            _cmdsudo mv "${_backupreps_var_file}" "${_backupreps_var_file}".backup_rep
+    [ -f "${_boreps__file}" ] && _printfs "disabling temporaly non standard repos ..."
+    for _boreps__file in /etc/apt/sources.list.d/*.list; do
+        if [ -f "${_boreps__file}" ]; then
+            _cmd mv "${_boreps__file}" "${_boreps__file}".backup_rep
         fi
     done
     _tweak_apt_get
 }
 
 _recover_original_reps() { #recover files at /etc/apt/sources.list.d/*
-    for _recoverreps_var_file in /etc/apt/sources.list.d/*.list.backup_rep; do
+    for _roreps__file in /etc/apt/sources.list.d/*.list.backup_rep; do
         break
     done
-    [ -f "${_recoverreps_var_file}" ] && _printfs "recovering non standard repos ..."
-    for _recoverreps_var_file in /etc/apt/sources.list.d/*.list.backup_rep; do
-        if [ -f "${_recoverreps_var_file}" ]; then
-            _cmdsudo mv "${_recoverreps_var_file}" "${_recoverreps_var_file%.backup_rep}"
+    [ -f "${_roreps__file}" ] && _printfs "recovering non standard repos ..."
+    for _roreps__file in /etc/apt/sources.list.d/*.list.backup_rep; do
+        if [ -f "${_roreps__file}" ]; then
+            _cmd mv "${_roreps__file}" "${_roreps__file%.backup_rep}"
         fi
     done
 }
@@ -516,7 +442,7 @@ _add_repository() { #ensure rep is enabled
         _die "Bad formated repository: ${1}"
     fi
 
-    [ ! -d /etc/apt/sources.list.d ] && _cmdsudo mkdir /etc/apt/sources.list.d
+    [ ! -d /etc/apt/sources.list.d ] && _cmd mkdir /etc/apt/sources.list.d
     if [ -z "${_arepository__list}" ]; then
         _arepository__extras=/etc/apt/sources.list.d/*.list
 
@@ -533,8 +459,8 @@ _add_repository() { #ensure rep is enabled
 
     case "${_arepository__baseurl}" in
         *archive.ubuntu.com*)
-            _arepository__regex="$(printf "%s" "${1}" | cut -d' ' -f3-4)"
-            _arepository__name="$(printf "%s" "${1}" | cut -d' ' -f3-4 | tr ' ' '-')"
+            _arepository__regex="$(printf "%s" "${1}" | cut -d' ' -f3-4 | sed 's: :.*:g')"
+            _arepository__name="$(printf "%s" "${1}"  | cut -d' ' -f3-4 | tr ' ' '-')"
             ;;
         *)
             _arepository__regex="${_arepository__baseurl}"
@@ -554,15 +480,15 @@ _add_repository() { #ensure rep is enabled
 
     if ! printf "%s" "${_arepository__list}" | grep "${_arepository__regex}" >/dev/null; then
         printf "%s\\n" "${1}" > /tmp/"${_arepository__name}".list
-        _cmdsudo mv /tmp/"${_arepository__name}".list /etc/apt/sources.list.d/
+        _cmd mv /tmp/"${_arepository__name}".list /etc/apt/sources.list.d/
         if [ -n "${_arepository__key}" ]; then
             if printf "%s" "${_arepository__key}" | grep "http" >/dev/null; then
                 _fetch_file ${_arepository__key} /tmp/keyfile.asc
-                _waitforsudo apt-key add /tmp/keyfile.asc
+                _cmd_animate apt-key add /tmp/keyfile.asc
                 _cmd rm -rf /tmp/keyfile.asc
             else
-                _waitforsudo apt-get install --no-install-recommends -y gnupg
-                _waitforsudo apt-key adv --keyserver keyserver.ubuntu.com \
+                _cmd_animate apt-get install --no-install-recommends -y gnupg
+                _cmd_animate apt-key adv --keyserver keyserver.ubuntu.com \
                 --recv-keys "${_arepository__key}"
             fi
         fi
@@ -588,7 +514,7 @@ _tweak_apt_get() {
     _printfl "Tweaking apt-get"
     printf "%s\\n" '    $ printf "%s\n" "Dir::Ignore-Files-Silently:: "(.save|.distUpgrade|.backup_rep)$";" > /tmp/minos-apt-99ignoresave'
     printf "%s"    'Dir::Ignore-Files-Silently:: "(.save|.distUpgrade|.backup_rep)$";' > /tmp/minos-apt-99ignoresave
-    _cmdsudo       mv /tmp/minos-apt-99ignoresave /etc/apt/apt.conf.d/99ignoresave
+    _cmd mv /tmp/minos-apt-99ignoresave /etc/apt/apt.conf.d/99ignoresave
 
     #we're about to install many packages, speed up the process for future runs
     _install_apt_proxy
@@ -615,14 +541,14 @@ _core() {
     fi
 
     _printfs "Installing packages ..."
-    #_waitforsudo apt-get install --no-install-recommends -y minos-core
-    _cmdsudo_verbose apt-get install --no-install-recommends -y --force-yes \
-        minos-core || _die "Installation failed"
+    #_cmd_animate apt-get install --no-install-recommends -y minos-core
+    _cmd_verbose apt-get install --no-install-recommends -y --force-yes \
+        minos-core
     _recover_original_reps
 
     _printfs "Removing leftovers  ..."
-    _waitforsudo apt-get purge -y squid-deb-proxy-client apt-cacher-ng
-    _waitforsudo apt-get autoremove
+    _cmd_animate apt-get purge -y squid-deb-proxy-client apt-cacher-ng
+    _cmd_animate apt-get autoremove
 
     _printfl "DONE"
     printf "\\n%s\\n" "Reload your session or relogin to get started, have fun! n@n/"
@@ -638,10 +564,10 @@ _desktop() {
     fi
 
     _printfs "Installing packages ..."
-    #_waitforsudo DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y minos-desktop
-    _cmdsudo_verbose \
+    #_cmd_animate DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y minos-desktop
+    _cmd_verbose \
         DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends \
-        -y --force-yes minos-desktop || _die "Installation failed"
+        -y --force-yes minos-desktop
     #[ -d "${HOME}"/.gvfs ] && fusermount -u "${HOME}"/.gvfs
     _recover_original_reps
 
@@ -649,26 +575,230 @@ _desktop() {
     printf   "\\n%s\\n" "Restart your computer to get started, have fun!, n@n/"
 }
 
+_live() {
+    _live__release="$(_get_release)"
+    _live__rnumber="$(_get_release_number "${_live__release}")"
+    _live__arch="$(dpkg --print-architecture)"
+    _live__root_partition="${root_partition}"
+    _live__home_partition="${home_partition}"
+    _live__grub_partition="$(printf "%s\\n" "${_live__root_partition}"|sed 's:[0-9]::g')"
+    _live__username="${username}"
+    _live__passwd="${passwd}"
+    _live__tmp_mnt="/minos"
+    _live__swap="$(blkid|awk '/swap/{print $1;exit;}'|sed 's/://g')"
+    _live__secs="10"
+
+    printf "\033[1A" #override previous line
+    _printfl "Minos Live Installer"
+    printf "%b\\n" "${WHITE_BOLD}Release:     ${DEFAULT}${_live__release} / ${_live__rnumber}"
+    printf "%b\\n" "${WHITE_BOLD}Arch:        ${DEFAULT}${_live__arch}"
+    printf "%b\\n" "${WHITE_BOLD}Target:      ${DEFAULT}${_live__tmp_mnt}"
+    printf "\\n"
+    printf "%b\\n" "${WHITE_BOLD}/ partition: ${DEFAULT}${_live__root_partition}"
+    if [ -n "${_live__home_partition}" ]; then
+        printf "%b\\n" "${WHITE_BOLD}/home partition: ${DEFAULT}${_live__home_partition}"
+    fi
+    printf "%b\\n" "${WHITE_BOLD}Grub:        ${DEFAULT}${_live__grub_partition}"
+    printf "%b\\n" "${WHITE_BOLD}Swap:        ${DEFAULT}${_live__swap:-None}"
+    printf "\\n"
+    printf "%b\\n" "${WHITE_BOLD}Account:     ${DEFAULT}${_live__username} / $(printf "%s\\n" "${_live__passwd}"|sed 's:.:*:g')"
+
+    _printfl
+    _printf_sleep  "Press Ctrl-C to cancel, or wait X seconds to continue ..." "${_live__secs}"
+
+    printf "\033[1A" #override previous line
+    _printfl "Checking for bootstrap ..."
+    if ! command -v "debootstrap"; then
+        _cmd_verbose apt-get update
+        _cmd_verbose apt-get install debootstrap
+    fi
+
+    _cmd_verbose mkfs.ext4 -F "${_live__root_partition}"
+
+    _cmd_verbose mkdir -p "${_live__tmp_mnt}"
+    _cmd_verbose mount "${_live__root_partition}" "${_live__tmp_mnt}"
+
+    _cmd_verbose debootstrap --arch "${_live__arch}" "${_live__release}" "${_live__tmp_mnt}"
+    _cmd_verbose cp /etc/apt/sources.list "${_live__tmp_mnt}/etc/apt/sources.list"
+    _cmd_verbose sed -i "/cdrom:/d" "${_live__tmp_mnt}/etc/apt/sources.list"
+
+    _printfl "Generating new /etc/fstab file"
+    printf "%s\\n" "${_live__root_partition} / ext4 errors=remount-ro 0 1" | tee "${_live__tmp_mnt}/etc/fstab"
+    if [ -n "${_live__home_partition}" ]; then
+        printf "%s\\n" "${_live__home_partition} /home ext4 errors=remount-ro 0 1" | tee -a "${_live__tmp_mnt}/etc/fstab"
+    fi
+    printf "%s\\n" "${_live__swap} none swap sw 0 0" | tee -a "${_live__tmp_mnt}/etc/fstab"
+    printf "%s\\n" "proc /proc proc  defaults 0 0"   | tee -a "${_live__tmp_mnt}/etc/fstab"
+    printf "%s\\n" "sys  /sys  sysfs defaults 0 0"   | tee -a "${_live__tmp_mnt}/etc/fstab"
+
+    _printfl "Chrooting into  ${_live__tmp_mnt}"
+    _cmd_verbose mount --bind /dev  "${_live__tmp_mnt}/dev"
+    _cmd_verbose mount --bind /proc "${_live__tmp_mnt}/proc"
+    _cmd_verbose mount --bind /sys  "${_live__tmp_mnt}/sys"
+
+    cat << EOF | chroot "${_live__tmp_mnt}"
+    set -xe
+
+    printf "%s\\n" "grub-pc grub-pc/install_devices multiselect ${_live__grub_partition}" | debconf-set-selections
+    apt-get update
+    apt-get install --no-install-recommends -y wget grub-pc grub2-common linux-generic-hwe-"${_live__rnumber}"
+
+    adduser --quiet --disabled-password --shell /bin/bash --home "/home/${_live__username}" --gecos "" "${_live__username}"
+    printf "%s\\n" "${_live__username}:${_live__passwd}" | chpasswd
+
+    if [ -n "${_live__home_partition}" ]; then
+        rm -rf "/home/${_live__username}"
+    fi
+
+    for group in adm cdrom sudo dip plugdev netdev admin; do
+        if ! grep -q "\${group}" /etc/group; then
+            addgroup "\${group}"
+        fi
+        usermod -aG "\${group}" "${_live__username}"
+    done
+
+    wget -q -O- minos.io/s | sh /dev/stdin ${submode}
+    apt-get autoremove
+
+    sed -i -e "/^127.0.0.1/ s:^127.*:127.0.0.1\tminos minos.lan localhost:" /etc/hosts
+    echo 'minos' | tee /etc/hostname
+    hostnamectl set-hostname 'minos' || :
+
+    sed -i -e '/^XKBMODEL/  s:=.*:="pc105":' /etc/default/keyboard
+    sed -i -e '/^XKBLAYOUT/ s:=.*:="latam":' /etc/default/keyboard
+
+    sed -i -e '/^CHARMAP/   s:=.*:="UTF-8":' /etc/default/console-setup
+    sed -i -e '/^CODESET/   s:=.*:="guess":' /etc/default/console-setup
+
+    locale-gen en_US.UTF-8
+    update-locale LANG=en_US.UTF-8
+
+    #https://stackoverflow.com/a/42344810/890858
+    ln -fs /usr/share/zoneinfo/America/Mexico_City /etc/localtime
+    dpkg-reconfigure --frontend noninteractive tzdata
+
+    grub-install "${_live__grub_partition}"
+    grub-install --recheck "${_live__grub_partition}"
+    update-grub
+EOF
+
+    set +x
+    _printfl "DONE: Reboot the system to get started, have fun!, n.n/"
+
+#TODO
+#hostnamectl set-hostname minos
+#dpkg-reconfigure keyboard-configuration
+#dpkg-reconfigure tzdata
+#locale-gen en_US.UTF-8
+#dpkg-reconfigure locales
+#dpkg-reconfigure console-data
+#dpkg-reconfigure console-setup
+
+#
+}
+
+_live_params() {
+    [ -z "${4}" ] && return 1 || shift
+
+    case "${1}" in
+        c*|d*)
+            case "${1}" in
+                c*) submode="core"    ;;
+                d*) submode="desktop" ;;
+            esac; shift
+            ;;
+        /*) submode="desktop" ;;
+    esac
+
+    root_partition="${1}"
+    username="${2}"
+    passwd="${3}"
+    home_partition="${4}"
+
+    if [ ! -e "${root_partition}" ]; then
+        _die "${root_partition} doesn't exists → /"
+    fi
+
+    if [ -n "${home_partition}" ]; then
+        if [ ! -e "${home_partition}" ]; then
+            _die "${home_partition} doesn't exists → /home"
+        fi
+    fi
+}
+
+################################################################################
+# Parse parameters #############################################################
+################################################################################
+
+if [ -z "${1}" ]; then
+    mode="core"; cx="\b>"
+else
+    case "${1}" in
+        d*|desktop) mode="desktop"; dx="\b>";;
+           l*|live) mode="live"
+                    case "${2}" in
+                        c*|core)    lcx="\b>";;
+                        *|desktop)  ldx="\b>";;
+                    esac
+                    ;;
+            *|core) mode="core";    cx="\b>";;
+    esac
+
+    for arg in "${@}"; do #parse options
+        case "${arg}" in
+            --release)
+                if [ "${#}" -gt "1" ]; then
+                    case "${2}" in
+                        -*) _die "Option '${arg}' requires a parameter" ;;
+                    esac; shift
+
+                    case "${1}" in
+                        14.04|trusty) RELEASE="trusty" ;;
+                        16.04|xenial) RELEASE="xenial" ;;
+                        18.04|bionic) RELEASE="bionic" ;;
+                        *) _header; _die "Invalid release: ${1}"
+                    esac; shift
+                else
+                    _die "Option '${arg}' requires a parameter"
+                fi
+                ;;
+            -*) _header; _die "Invalid option: ${arg}" ;;
+            *)  if [ -n "${1}" ]; then
+                    args="${args} ${arg}";
+                    shift
+                fi ;;
+        esac
+    done
+fi
+
+set -- ${args}
 ################################################################################
 # Main #########################################################################
 ################################################################################
 
 _header
 if _supported; then
-    #the _hook function execute $HOME/s/[LETTER][NUMBER] scripts
-    #eg: $HOME/s/A01action, $HOME/s/B01installextra, $HOME/s/Z01finish
-    _hooks A #these hooks wont have super powers
-    _get_root_passwd
-    _hooks B #super powers are available through the "_cmdsudo" function
-             #e.g, _cmdsudo mkdir /root/forbidden_directory
+    case "${mode}" in
+        live) _live_params "${@}" || _die "Missing or incorrect parameters" ;;
+    esac
+    _is_root || _die "You aren't root!, re-run with admin privileges"
+
+    #give the user chance to cancel before starting
+    _printf_sleep "Loading components ..." "3" || exit 1
+
+    trap _cleanup INT QUIT #trap ctrl-c
+    #the _hook function execute $HOME/.minos/hooks/[LETTER][NUMBER] scripts
+    #eg: $HOME/.minos/hooks/A01installextral, $HOME/.minos/hooks/Z01finish
+    _hooks A
     case "${mode}" in
            core)  _core    ;;
         desktop)  _desktop ;;
+           live)  _live    ;;
     esac
-    _hooks C; : #finish script with 0, independly of latest hooks result
+    _hooks Z; : #finish script with 0, independly of latest hooks result
 else
     printf "%s %s\\n" "FAILED: Non supported distribution system detected," \
-            "run this script on ${supported} systems only"
+            "run this script on ${SUPPORTED} systems only"
 fi
 
 # vim: set ts=8 sw=4 tw=0 ft=sh :
