@@ -519,12 +519,12 @@ _add_repository() { #ensure rep is enabled
         if [ -n "${_arepository__key}" ]; then
             if printf "%s" "${_arepository__key}" | grep "http" >/dev/null; then
                 _fetch_file ${_arepository__key} /tmp/keyfile.asc
-                _cmd_animate apt-key add /tmp/keyfile.asc
-                _cmd rm -rf /tmp/keyfile.asc
+                _cmd_verbose apt-key add /tmp/keyfile.asc
+                _cmd_verbose rm -rf /tmp/keyfile.asc
             else
-                _cmd_animate apt-get install --no-install-recommends -y gnupg
-                _cmd_animate apt-key adv --keyserver keyserver.ubuntu.com \
-                --recv-keys "${_arepository__key}"
+                _cmd_verbose apt-get install --no-install-recommends -y gnupg
+                _cmd_verbose apt-key adv --keyserver keyserver.ubuntu.com \
+                    --recv-keys "${_arepository__key}"
             fi
         fi
     fi
