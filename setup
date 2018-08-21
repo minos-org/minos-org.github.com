@@ -319,10 +319,10 @@ _apt_update() {
         if [ "${_aupdate__diff}" -lt "${_aupdate__cache_seconds}" ]; then
             _printfs "apt-get update was recently used ($(_seconds2human "${_aupdate__diff}") ago), skipping ..."
         else
-            _cmd_animate apt-get update
+            _cmd_verbose apt-get update
         fi
     else
-        _cmd_animate apt-get update
+        _cmd_verbose apt-get update
     fi
 }
 
@@ -598,8 +598,7 @@ _core() {
 
     _printfs "Installing packages ..."
     #_cmd_animate apt-get install --no-install-recommends -y minos-core
-    _cmd_verbose apt-get install --no-install-recommends -y --force-yes \
-        minos-core
+    _cmd_verbose apt-get install --no-install-recommends -y --force-yes minos-core
     _recover_original_reps
 
     _printfs "Removing leftovers  ..."
@@ -662,7 +661,7 @@ _live() {
     _printf_sleep  "Press Ctrl-C to cancel, or wait X seconds to continue ..." "${_live__secs}"
 
     printf "\033[1A" #override previous line
-    _printfl "Checking for bootstrap ..."
+    _printfl "Bootstrapping"
     if ! command -v "debootstrap" >/dev/null 2>&1; then
         _install_debootstrap
     fi
