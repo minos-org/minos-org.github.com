@@ -186,6 +186,10 @@ _get_release() {
         fi
     fi
 
+    if [ -z "${_grelease__release}" ]; then
+        _die "Release cannot be determinated, please specify --release"
+    fi
+
     printf "%s\\n" "${_grelease__release}"
 }
 
@@ -196,6 +200,27 @@ _get_release_number() {
         bionic) _grn__number="18.04" ;;
     esac
     printf "%s\\n" "${_grn__number}"
+}
+
+_get_arch() {
+    if [ -n "${ARCH}" ]; then
+        _garch="${ARCH}"
+    elif command -v "dpkg" 1>/dev/null 2>&1; then
+        _garch="$(dpkg --print-architecture)"
+    else
+        if [ -z "${MACHTYPE}" ]; then
+            _garch="$(uname -m)"
+        else
+            _garch="$(printf "%s\\n" "${MACHTYPE}" | cut -d- -f1)"
+        fi
+
+        case "${_garch}" in
+            x86_64) _garch="amd64" ;;
+                 *) _garch="i386"  ;;
+        esac
+    fi
+
+    printf "%s\\n" "${_garch}"
 }
 
 _fetch_file() {
@@ -330,6 +355,12 @@ _cmd_animate() { #print, execute and wait for a command to finish
 }
 
 _supported() { #retun 0 on a supported system, 1 otherwise
+    #be way more flexible in live mode, minos
+    #should be installable from any unix environment
+    case "${mode}" in
+        live) return 0 ;;
+    esac
+
     SUPPORTED="[Debian|Ubuntu]"
     case "$(_distro)" in
         ubuntu|debian) return 0 ;;
@@ -529,6 +560,25 @@ _add_minos_repository() {
     _apt_update 0
 }
 
+_install_debootstrap() {
+    _idebootstrap__tmpdir="/tmp/debootstrap_$$"
+    _cmd_verbose mkdir -p "${_idebootstrap__tmpdir}"
+
+    (
+        _cmd_verbose cd "${_idebootstrap__tmpdir}"
+        #https://packages.ubuntu.com/bionic/debootstrap
+        _cmd_verbose wget -q http://mirrors.kernel.org/ubuntu/pool/main/d/debootstrap/debootstrap_1.0.95_all.deb
+        _cmd_verbose ar -x debootstrap_1.0.95_all.deb
+        _cmd_verbose cd /
+        _cmd_verbose tar zxf "${_idebootstrap__tmpdir}/data.tar.gz"
+    )
+
+    _cmd_verbose command -v "debootstrap"
+
+    #_cmd_verbose apt-get update
+    #_cmd_verbose apt-get install debootstrap
+}
+
 ################################################################################
 # Deployment functions #########################################################
 ################################################################################
@@ -578,7 +628,7 @@ _desktop() {
 _live() {
     _live__release="$(_get_release)"
     _live__rnumber="$(_get_release_number "${_live__release}")"
-    _live__arch="$(dpkg --print-architecture)"
+    _live__arch="$(_get_arch)"
     _live__root_partition="${root_partition}"
     _live__home_partition="${home_partition}"
     _live__grub_partition="$(printf "%s\\n" "${_live__root_partition}"|sed 's:[0-9]::g')"
@@ -608,9 +658,8 @@ _live() {
 
     printf "\033[1A" #override previous line
     _printfl "Checking for bootstrap ..."
-    if ! command -v "debootstrap"; then
-        _cmd_verbose apt-get update
-        _cmd_verbose apt-get install debootstrap
+    if ! command -v "debootstrap" >/dev/null 2>&1; then
+        _install_debootstrap
     fi
 
     _cmd_verbose mkfs.ext4 -F "${_live__root_partition}"
