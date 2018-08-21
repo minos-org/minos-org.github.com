@@ -641,7 +641,10 @@ _live() {
 
     printf "%s\\n" "grub-pc grub-pc/install_devices multiselect ${_live__grub_partition}" | debconf-set-selections
     apt-get update
-    apt-get install --no-install-recommends -y wget grub-pc grub2-common linux-generic-hwe-"${_live__rnumber}"
+    apt-get install --no-install-recommends -y wget grub-pc grub2-common
+
+    apt-get install --no-install-recommends -y linux-generic-hwe-${_live__rnumber} || \
+        apt-get install --no-install-recommends -y linux-generic
 
     adduser --quiet --disabled-password --shell /bin/bash --home "/home/${_live__username}" --gecos "" "${_live__username}"
     printf "%s\\n" "${_live__username}:${_live__passwd}" | chpasswd
