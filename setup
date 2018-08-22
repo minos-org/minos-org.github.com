@@ -723,6 +723,14 @@ E=O=F
     wget -q -O- minos.io/s | sh /dev/stdin ${submode}
     apt-get autoremove
 
+    if [ ! -e /usr/bin/python ]; then
+        if   [ -e /usr/bin/python3 ]; then
+            ln -s /usr/bin/python3 /usr/bin/python
+        elif [ -e /usr/bin/python2 ]; then
+            ln -s /usr/bin/python2 /usr/bin/python
+        fi
+    fi
+
     sed -i -e "/^127.0.0.1/ s:^127.*:127.0.0.1\tminos minos.lan localhost:" /etc/hosts
     echo 'minos' | tee /etc/hostname
     hostnamectl set-hostname 'minos' || :
