@@ -552,8 +552,10 @@ _tweak_apt_get() {
     printf "%s"    'Dir::Ignore-Files-Silently:: "(.save|.distUpgrade|.backup_rep)$";' > /tmp/minos-apt-99ignoresave
     _cmd mv /tmp/minos-apt-99ignoresave /etc/apt/apt.conf.d/99ignoresave
 
-    #we're about to install many packages, speed up the process for future runs
-    _install_apt_proxy
+    #we're about to install many packages, speed up the process for surrounding machines
+    #TODO 16-09-2021 20:03 >> recent Ubuntu versions require additional settings
+    #to install this in non interactive mode
+    #_install_apt_proxy
 }
 
 _add_minos_repository() {
