@@ -1,6 +1,6 @@
 #!/bin/sh
 
-VERSION="2021.09.16-20:06"
+VERSION="2022.02.12-11:03"
 LINER="$ sudo sh <(wget -qO- minos.io/s)"
 
 ################################################################################
@@ -195,9 +195,9 @@ _get_release() {
 
 _get_release_number() {
     case "${1}" in
-        trusty) _grn__number="14.04" ;;
         xenial) _grn__number="16.04" ;;
         bionic) _grn__number="18.04" ;;
+         focal) _grn__number="20.04" ;;
     esac
     printf "%s\\n" "${_grn__number}"
 }
@@ -421,7 +421,7 @@ _header() {
     printf "%s\\n" "  /dev/sdX → /     mount point"
     printf "%s\\n" "  /dev/sdY → /home mount point (optional)"
     printf "\\n"
-    printf "%s\\n" "  --release  [14.04|16.04|18.04]"
+    printf "%s\\n" "  --release  [16.04|18.04|20.04]"
     _printfl
 }
 
@@ -572,18 +572,15 @@ _install_debootstrap() {
 
     (
         _cmd_verbose cd "${_idebootstrap__tmpdir}"
-        #https://packages.ubuntu.com/bionic/debootstrap
-        _cmd_verbose wget -q http://mirrors.kernel.org/ubuntu/pool/main/d/debootstrap/debootstrap_1.0.95_all.deb
-        _cmd_verbose ar -x debootstrap_1.0.95_all.deb
+        #https://packages.ubuntu.com/focal/debootstrap
+        _cmd_verbose wget -q http://mirrors.kernel.org/ubuntu/pool/main/d/debootstrap/debootstrap_1.0.118ubuntu1_all.deb
+        _cmd_verbose busybox ar -x debootstrap_1.0.118ubuntu1_all.deb
         _cmd_verbose cd /
         _cmd_verbose tar zxf "${_idebootstrap__tmpdir}/data.tar.gz"
     )
 
     _cmd_verbose command -v "debootstrap"
     _cmd_verbose rm -rf "${_idebootstrap__tmpdir}"
-
-    #_cmd_verbose apt-get update
-    #_cmd_verbose apt-get install debootstrap
 }
 
 ################################################################################
@@ -668,6 +665,7 @@ _live() {
         _install_debootstrap
     fi
 
+    umount "${_live__root_partition}" 2>/dev/null || :
     _cmd_verbose mkfs.ext4 -F "${_live__root_partition}"
 
     _cmd_verbose mkdir -p "${_live__tmp_mnt}"
@@ -828,9 +826,9 @@ else
                     esac; shift
 
                     case "${1}" in
-                        14.04|trusty) RELEASE="trusty" ;;
                         16.04|xenial) RELEASE="xenial" ;;
                         18.04|bionic) RELEASE="bionic" ;;
+                        20.04|focal)  RELEASE="focal" ;;
                         *) _header; _die "Invalid release: ${1}"
                     esac; shift
                 else
