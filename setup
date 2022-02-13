@@ -733,6 +733,10 @@ E=O=F
         fi
     fi
 
+    if [ X"${RELEASE}" = X"focal" ]; then
+        sed -i 's,wicd-curses:terminal,cmst -d,g' /etc/minos/config
+    fi
+
     sed -i -e "/^127.0.0.1/ s:^127.*:127.0.0.1\tminos minos.lan localhost:" /etc/hosts
     echo 'minos' | tee /etc/hostname
     hostnamectl set-hostname 'minos' || :
