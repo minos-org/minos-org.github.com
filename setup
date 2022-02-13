@@ -753,6 +753,11 @@ E=O=F
     grub-install "${_live__grub_partition}"
     grub-install --recheck "${_live__grub_partition}"
     update-grub
+
+    if [ X"${RELEASE}" = X"focal" ]; then
+        update-initramfs -u -k "$(basename /boot/vmlinuz-* | sed 's:vmlinuz-::g' | head -1)"
+        update-grub2
+    fi
 EOF
 
     if _last_cmd_ok; then
