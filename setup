@@ -759,8 +759,8 @@ E=O=F
     update-grub
 
     if [ X"${RELEASE}" = X"focal" ]; then
-        update-initramfs -u -k "$(basename "${_live__tmp_mnt}"/boot/vmlinuz-* | \
-                                  sed 's:vmlinuz-::g' | head -1)"
+        update-initramfs -u -k "\$(dpkg --list  | \
+            awk '/linux-image/{print \$2;exit}' | sed 's:linux-image-::g')"
         update-grub2
     fi
 EOF
