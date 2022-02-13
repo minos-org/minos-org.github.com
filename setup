@@ -638,7 +638,7 @@ _live() {
     _live__username="${username}"
     _live__passwd="${passwd}"
     _live__tmp_mnt="/minos"
-    _live__swap="$(blkid|awk '/swap/{print $1;exit;}'|sed 's/://g')"
+    _live__swap="$(blkid|awk '/swap/&&/PART/{print $1;exit;}'|sed 's/://g')"
     _live__secs="10"
 
     printf "\033[1A" #override previous line
@@ -649,7 +649,7 @@ _live() {
     printf "\\n"
     printf "%b\\n" "${WHITE_BOLD}/ partition: ${DEFAULT}${_live__root_partition}"
     if [ -n "${_live__home_partition}" ]; then
-        printf "%b\\n" "${WHITE_BOLD}/home partition: ${DEFAULT}${_live__home_partition}"
+        printf "%b\\n" "${WHITE_BOLD}/home  part: ${DEFAULT}${_live__home_partition}"
     fi
     printf "%b\\n" "${WHITE_BOLD}Grub:        ${DEFAULT}${_live__grub_partition}"
     printf "%b\\n" "${WHITE_BOLD}Swap:        ${DEFAULT}${_live__swap:-None}"
@@ -665,8 +665,11 @@ _live() {
         _install_debootstrap
     fi
 
+    umount "${_live__tmp_mnt}/dev"    2>/dev/null || :
+    umount "${_live__tmp_mnt}/proc"   2>/dev/null || :
+    umount "${_live__tmp_mnt}/sys"    2>/dev/null || :
+    umount "${_live__tmp_mnt}/home"   2>/dev/null || :
     umount "${_live__root_partition}" 2>/dev/null || :
-    _cmd_verbose mkfs.ext4 -F "${_live__root_partition}"
 
     _cmd_verbose mkdir -p "${_live__tmp_mnt}"
     _cmd_verbose mount "${_live__root_partition}" "${_live__tmp_mnt}"
@@ -693,6 +696,9 @@ E=O=F
     _cmd_verbose mount --bind /dev  "${_live__tmp_mnt}/dev"
     _cmd_verbose mount --bind /proc "${_live__tmp_mnt}/proc"
     _cmd_verbose mount --bind /sys  "${_live__tmp_mnt}/sys"
+    if [ -n "${_live__home_partition}" ]; then
+        _cmd_verbose mount "${_live__home_partition}" "${_live__tmp_mnt}/home"
+    fi
 
     cat << EOF | chroot "${_live__tmp_mnt}"
     set -xe
@@ -708,10 +714,6 @@ E=O=F
 
     adduser --quiet --disabled-password --shell /bin/bash --home "/home/${_live__username}" --gecos "" "${_live__username}"
     printf "%s\\n" "${_live__username}:${_live__passwd}" | chpasswd
-
-    if [ -n "${_live__home_partition}" ]; then
-        rm -rf "/home/${_live__username}"
-    fi
 
     for group in adm cdrom sudo dip plugdev netdev admin; do
         if ! grep -q "\${group}" /etc/group; then
