@@ -1,0 +1,490 @@
+/* mesas: the page is the minos desktop. Six i3 workspaces, the first five named as /etc/i3/config names them, each
+   running the program i3 assigns to it, with that workspace's subject inside:
+     1 www   the welcome screen: gxmessage, one mpv     what minos is; how it is developed; where it comes from
+     2 fm    pcmanfm, a tab per folder                   what minos-core and minos-desktop hold
+     3 mail  mutt in urxvt (assign [title="mutt"])       the principles, the config file
+     4 im    irssi in urxvt (assign [title="irssi"])     the keys
+     5 term  urxvt                                       how to install it; where else it runs
+     6 tv    mpv, twenty windows                         minos at work, a short silent film each
+   i3's colours are the config's (client.* and bar colors), the bar's status is minos-statusbar's blocks with the
+   sm4tik icons, the terminals use the base16 "default-dark" palette colorize sets, in Inconsolata, the terminal's and
+   the bar's font. A few colours are lifted where the original fails 4.5:1 on black (noted beside them).
+
+   html.mesas-on marks a mounted desktop (effects.js). Without it (no JavaScript, or effects that did not run) the core
+   reads top to bottom, each section a window. */
+:root {
+  --focus: #999999;     /* client.focused border, background */
+  --line: #333333;      /* client.unfocused border, background */
+  --urgent: #8C4665;    /* client.urgent border */
+  --urgentbg: #8C5665;  /* client.urgent background */
+  --barurgent: #d11931; /* bar urgent_workspace border */
+  --tdim: #a3a3a3;      /* client.unfocused text is #999999: 4.4:1 on #333333, lifted to 5:1 */
+  --dim: #a6a6a6;
+  --white: #cfcfcf; --bright: #fefbec;
+  --red: #ee2929; --green: #89e134; --teal: #3a9a9a; --yellow: #fbe84f; --blue: #729ece; --magenta: #c08aff; --cyan: #32e1e1;
+  --indicator: #2b7d7d; /* mutt's indicator, "brightwhite green": green is #308888 in default-dark, deepened for 4.6:1 */
+  --grey: #8a8a8a;      /* irssi %K is #2c2c2c in default-dark: invisible on black, lifted */
+  --mono: Inconsolata, "DejaVu Sans Mono", "Liberation Mono", Menlo, Consolas, monospace;
+  --sans: "DejaVu Sans", Verdana, "Segoe UI", system-ui, sans-serif;
+  --bar: 34px;
+}
+html { background: #000; }
+body { margin: 0; background: #000; color: #fff; font: 18px/1.5 var(--mono); }
+a { color: #fff; text-underline-offset: 3px; text-decoration-color: var(--focus); overflow-wrap: anywhere; }
+:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+h1, h2, h3, p, ul, ol, dl, dd { margin: 0; padding: 0; }
+ul, ol { list-style: none; }
+b, strong { font-weight: 700; }
+code, kbd { font: inherit; }
+kbd { white-space: nowrap; border: 1px solid var(--focus); padding: 0 4px; }
+.sw { display: inline-block; width: 12px; height: 12px; margin: 0 6px 0 2px; vertical-align: -1px; border: 1px solid #fff; }
+.cmd { font-family: var(--mono); }
+.cmd code { padding-left: 2ch; text-indent: -2ch; }
+.cmd .c { color: var(--dim); }
+
+/* ================= without the desktop: the core top to bottom, every section a window ================= */
+html:not(.mesas-on) body { padding: 2px; }
+html:not(.mesas-on) .site { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 8px 8px 10px; border-bottom: 1px solid var(--line); }
+html:not(.mesas-on) .brand { font-size: 18px; color: var(--dim); font-weight: 400; }
+html:not(.mesas-on) .toc ul { display: flex; flex-wrap: wrap; gap: 4px; }
+html:not(.mesas-on) .toc a { display: block; padding: 2px 9px; border: 1px solid var(--line); color: var(--focus); text-decoration: none; }
+html:not(.mesas-on) .sec { border: 1px solid var(--line); margin: 2px 0 0; max-width: 1000px; }
+html:not(.mesas-on) .sec > h2 { margin: 0; padding: 0 10px; min-height: 30px; line-height: 30px; font-size: 16px; font-weight: 400; background: var(--line); color: var(--tdim); }
+html:not(.mesas-on) .sec > :not(h2) { margin-left: 18px; margin-right: 18px; }
+html:not(.mesas-on) .sec > :nth-child(2) { margin-top: 16px; }
+html:not(.mesas-on) .sec > :last-child { margin-bottom: 20px; }
+html:not(.mesas-on) .sec > * + :not(h2) { margin-top: 12px; }
+html:not(.mesas-on) .foot { padding: 14px 10px 24px; color: var(--dim); }
+html:not(.mesas-on) .logo img { width: min(100%, 400px); }
+html:not(.mesas-on) .tag { font-size: 22px; font-weight: 700; }
+html:not(.mesas-on) dl.flavours, html:not(.mesas-on) dl.items, html:not(.mesas-on) dl.keys, html:not(.mesas-on) dl.links {
+  display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 18px;
+}
+html:not(.mesas-on) dt { font-weight: 700; }
+html:not(.mesas-on) dd { color: var(--dim); min-width: 0; }
+html:not(.mesas-on) .principles li { margin: 0 0 12px; }
+html:not(.mesas-on) .principles h3 { font-size: 20px; }
+html:not(.mesas-on) .principles .line { color: #fff; }
+html:not(.mesas-on) .principles p:not(.line) { color: var(--dim); }
+html:not(.mesas-on) .years li { display: grid; grid-template-columns: 5ch minmax(0, 1fr); }
+html:not(.mesas-on) .years span { color: var(--dim); }
+html:not(.mesas-on) .sec h3 { font-size: 18px; color: var(--focus); }
+@media (max-width: 520px) {
+  html:not(.mesas-on) dl.flavours, html:not(.mesas-on) dl.items, html:not(.mesas-on) dl.keys, html:not(.mesas-on) dl.links { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  html:not(.mesas-on) dd { margin: 0 0 8px 2ch; }
+  html:not(.mesas-on) .sec > :not(h2) { margin-left: 12px; margin-right: 12px; }
+  html:not(.mesas-on) body { font-size: 16px; }
+}
+
+/* ================= the desktop ================= */
+.mesas-on body { padding: 0 0 var(--bar); }
+.mesas-on .site { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.mesas-on .toc, .mesas-on .foot { display: none; }
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* ---- a workspace, one at a time ---- */
+.desk { display: none; flex-direction: column; min-height: calc(100vh - var(--bar)); min-height: calc(100dvh - var(--bar)); padding: 2px; }
+.desk.on { display: flex; }
+.desk:focus { outline: none; }
+.deskname { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.tiles { flex: 1; display: grid; gap: 2px; grid-template-columns: minmax(0, 1fr); }
+.tiles.two { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+.tiles.even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+
+/* ---- a window: i3's normal border, its title bar on top ---- */
+.win { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line); background: #000; }
+.win:focus { outline: none; }
+.win:focus-visible { outline: 2px solid #fff; outline-offset: -4px; }
+.title { flex: none; display: flex; align-items: stretch; min-height: 28px; background: var(--line); color: var(--tdim); font-size: 15px; line-height: 28px; user-select: none; }
+.tname { flex: 1; min-width: 0; padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.max { flex: none; border: 0; padding: 0 12px; background: none; color: inherit; font: inherit; cursor: pointer; }
+.max:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
+.win.focus { border-color: var(--focus); }
+.win.focus .title { background: var(--focus); color: #000; }
+.win.urgent { border-color: var(--urgent); }
+.win.urgent .title { background: var(--urgentbg); color: #fff; } /* i3 writes #999999 here: 2:1, so white */
+.wbody { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* ---- fullscreen (f, the ⤢ button): the window over the screen, the bar keeps ‹ esc › ---- */
+.mesas-on.maxed { overflow: hidden; }
+.win.maxed { position: fixed; z-index: 30; left: 0; right: 0; top: 0; bottom: var(--bar); overflow: auto; overscroll-behavior: contain; border-color: var(--focus); }
+.win.maxed .title { position: sticky; top: 0; z-index: 2; }
+.ghost { position: fixed; z-index: 40; border: 1px solid var(--focus); background: #000; pointer-events: none; transition: top .22s ease, left .22s ease, width .22s ease, height .22s ease; }
+.ghost::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 28px; background: var(--focus); }
+
+/* ---- the bar: i3bar at the bottom, workspace buttons on the left ---- */
+.bar { position: fixed; z-index: 20; left: 0; right: 0; bottom: 0; height: var(--bar); display: flex; align-items: center; gap: 2px; padding: 0 2px; background: #000; font-size: 15px; line-height: 1; }
+.wsl { display: flex; gap: 2px; }
+.wsb { display: block; height: 26px; line-height: 24px; padding: 0 9px; white-space: nowrap; text-align: center; border: 1px solid var(--line); background: #000; color: var(--focus); text-decoration: none; }
+.wsb[aria-current] { border-color: var(--focus); color: #fff; }
+.wsb.urgent { border-color: var(--barurgent); }
+.wsb:focus-visible { outline-offset: -4px; }
+.maxnav { display: none; flex: 1; align-items: center; gap: 4px; min-width: 0; }
+.maxed .wsl { display: none; }
+.maxed .maxnav { display: flex; }
+.maxnav button { height: 28px; min-width: 44px; padding: 0 10px; border: 1px solid var(--line); background: #000; color: #fff; font: inherit; cursor: pointer; }
+.maxnav .mname { flex: 1; min-width: 0; padding-left: 8px; color: var(--focus); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- the status: minos-statusbar's blocks, at the right end of the bar ---- */
+.top { position: fixed; z-index: 21; right: 0; bottom: 0; height: var(--bar); max-width: calc(100% - 450px); display: flex; align-items: center; gap: 10px; padding: 0 6px 0 0; font-size: 15px; line-height: 1; color: var(--focus); }
+.maxed .top { max-width: 50%; }
+.status { display: flex; align-items: center; min-width: 0; overflow: hidden; white-space: nowrap; color: var(--focus); }
+.status .blk { display: inline-flex; align-items: center; gap: 5px; padding: 0 2px; }
+.status .blk[hidden] { display: none; }
+.status svg { width: 11px; height: 11px; fill: currentColor; flex: none; shape-rendering: crispEdges; }
+.status .sep { padding: 0 7px; color: var(--line); font-style: normal; }
+.status .nosep + .sep { display: none; }
+.status .nosep { padding-right: 7px; }
+
+/* the theme switcher, beside the status: one small button that opens upwards */
+.top .switch { position: relative; flex: none; }
+.switch-btn { height: 26px; padding: 0 9px; border: 1px solid var(--line); background: #000; color: var(--focus); font: inherit; font-size: 15px; cursor: pointer; }
+.switch-btn[aria-expanded="true"] { background: #fff; border-color: #fff; color: #000; }
+.switch-cur { color: #fff; }
+.switch-btn[aria-expanded="true"] .switch-cur { color: #000; }
+.switch-panel { position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 50; min-width: 15ch; padding: 4px; background: #000; border: 1px solid var(--focus); }
+.switch-opt { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 10px; color: #fff; cursor: pointer; white-space: nowrap; }
+.switch-opt input { accent-color: #999999; margin: 0; }
+html:not(.mesas-on) .switch { margin-left: auto; position: relative; }
+html:not(.mesas-on) .switch-panel { top: calc(100% + 6px); bottom: auto; }
+
+/* ================= the programs ================= */
+
+/* ---- 1 www: the welcome screen. Floating gxmessage windows, the kind minos-help opens, and one mpv, on the black of
+   every other desk (no wallpaper, no shadow). gxmessage draws no images, so #about goes without the logo.
+   On a phone the windows stack, the film right after about; from 800 px about takes the top centre with history and
+   source beside it, and dev and the film share the bottom; from 1280 x 700 the desk is exactly one screen (see "one
+   screen per desk" below) ---- */
+#www .tiles { grid-template-columns: minmax(0, 1fr); grid-template-areas: "about" "mpv" "dev" "hist" "src"; gap: 18px; padding: 14px 8px; align-content: start; }
+.gx-about { grid-area: about; } .gx-dev { grid-area: dev; } .gx-history { grid-area: hist; } .gx-source { grid-area: src; }
+.mpv-www { grid-area: mpv; }
+.gx .wbody { padding: 12px 14px 16px; font: 15px/1.45 var(--mono); color: var(--white); background: #000; }
+.gx .logo { display: none; }
+.gx .sec > * + * { margin-top: .7em; }
+.gx .sec > .logo + * { margin-top: 0; }
+.gx .sec > h2 { font-size: 1.12em; color: var(--bright); }
+.gx .sec h3 { font-size: 1em; color: var(--bright); }
+.gx .tag, .gx b { color: var(--bright); }
+.gx .cmd { color: var(--cyan); }
+.gx-help { position: fixed; z-index: 26; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(560px, calc(100vw - 20px)); max-height: calc(100vh - var(--bar) - 30px); overflow: auto; }
+.gx-help .wbody { font-size: 15px; }
+.helptext { margin: 0; white-space: pre-wrap; font: inherit; }
+.gx-btns { display: flex; justify-content: flex-end; padding-top: 14px; }
+.gx-btns button { min-height: 38px; padding: 0 18px; border: 1px solid var(--focus); background: #000; color: #fff; font: inherit; cursor: pointer; }
+.guide { margin: 0; }
+.guide h3 { margin: 0 0 4px; font-size: inherit; font-weight: 700; color: var(--dim); }
+.guide li { display: grid; grid-template-columns: 8ch minmax(0, 1fr); gap: 0 1ch; }
+.guide span { color: var(--dim); }
+.years li { display: grid; grid-template-columns: 6ch minmax(0, 1fr); }
+.years span { color: var(--white); }
+.links { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0 2ch; }
+.links dt { color: var(--dim); font-weight: 400; }
+dl.flavours dt { font-weight: 700; color: var(--bright); }
+dl.flavours dd { padding-left: 4ch; }
+@media (min-width: 800px) {
+  /* the film top left, where history was, and history bottom right, where the film was; dev
+     keeps the width its text needs to fit 1280 x 700 (measured from 1280 x 700 to 2560 x 1440) */
+  #www .tiles { grid-template-columns: minmax(0, 24fr) minmax(0, 40fr) minmax(0, 6fr) minmax(0, 30fr);
+    grid-template-areas: "mpv about src src" "dev dev dev hist";
+    grid-template-rows: auto minmax(0, 1fr); gap: 1vw; padding: 1vw; align-content: stretch; }
+  .gx .wbody { padding: .55em .8em .6em; font-size: var(--fit, 15px); line-height: 1.28; }
+  .gx .sec > * + * { margin-top: .45em; }
+  /* flex: none: a multi-column box may shrink in its flex window and hide the rest of the text in a column off
+     to the side; at its own height, text that does not fit shows as a window that does not fit */
+  .gx-dev .sec { columns: 2; column-gap: 1.6em; flex: none; }
+  .gx-dev .sec > h2, .gx-dev .sec h3 { break-after: avoid; }
+  .gx-dev .cmd { break-inside: avoid; }
+  .gx-source .guide { margin-top: 1.1em; }
+}
+
+/* ---- mpv (1 www, 6 tv): the picture alone, black around it where its shape differs from the window's, as mpv
+   letterboxes. The window keeps the film's shape (16:9, or 9:16 on a phone, no taller than the screen) until the
+   desk has a fixed height, from 1280 x 700, where the window takes its tile and the picture fits inside ---- */
+.mpv .wbody { position: relative; flex: 1 0 auto; aspect-ratio: 16 / 9; background: #000; }
+.mpv video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; background: #000; cursor: pointer; }
+/* mpv's on-screen controller on the picture: the speaker and fullscreen at the bottom right; on 1 www, play in the
+   middle while the film is not playing, a sign on a dark circle (no glow, no shadow); mpv's OSD line at the top left */
+.osc { position: absolute; right: 6px; bottom: 6px; z-index: 2; display: flex; gap: 4px; }
+.osc button { height: 30px; min-width: 38px; padding: 0 10px; border: 1px solid var(--line); background: #000; color: var(--focus); font: 15px/28px var(--mono); cursor: pointer; }
+.osc .mute { display: inline-flex; align-items: center; justify-content: center; }
+.osc .mute svg { width: 16px; height: 16px; fill: currentColor; }
+.mpv.loud .mute { color: #fff; border-color: var(--focus); }
+.osc .mute:focus-visible, .play:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.play { position: absolute; left: 50%; top: 50%; z-index: 1; transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center;
+  width: 52px; height: 52px; padding: 0; border: 1px solid var(--focus); border-radius: 50%; background: rgba(0, 0, 0, .78); color: #fff; cursor: pointer; }
+.play svg { width: 22px; height: 22px; margin-left: 3px; fill: currentColor; }
+.mpv.playing .play { display: none; }
+.osd { position: absolute; left: 8px; top: 6px; z-index: 2; margin: 0; padding: 0 6px; background: rgba(0, 0, 0, .78); color: #fff; font: 15px/1.5 var(--mono); pointer-events: none; }
+.osd[hidden] { display: none; }
+.tiles.films { grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 14px 8px; align-content: start; }
+@media (min-width: 800px) {
+  .tiles.films { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 2px; padding: 0; }
+  /* mpv windows are narrow (twenty side by side on 6 tv, a fifth of the width on 1 www; i3's own title font is
+     9 pt): 12 px keeps the longest "<file> - mpv", 36 characters, whole from 1280 px, also where the browser rounds
+     each letter to whole pixels (Chromium on Linux makes 13 px Inconsolata 7 px a letter); up to 17 px when wide */
+  .mpv .title { font-size: clamp(12px, .94vw, 17px); }
+  .mpv .tname { padding: 0 8px; }
+}
+
+/* ---- 2 fm: pcmanfm's File Properties dialog, floating in the middle as i3 floats dialogs: an i3 window like the
+   pcmanfm it comes from (its black, its Inconsolata, its #333 lines, its tabs and its list's labels), no shadow ---- */
+.dlg-shade { position: fixed; inset: 0; z-index: 44; }
+.dlg { position: fixed; z-index: 45; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(600px, calc(100vw - 20px)); max-height: calc(100vh - var(--bar) - 24px); overflow: auto; }
+.dlg-body { padding: 0 0 14px; font: 16px/1.5 var(--mono); color: var(--white); background: #000; }
+.dlg-tabs { display: flex; gap: 2px; padding: 6px 6px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+.dlg-tabs span { min-height: 32px; line-height: 30px; padding: 0 16px; border: 1px solid var(--line); border-bottom: 0; background: #111; color: var(--dim); }
+.dlg-tabs .on { background: var(--line); color: #fff; }
+.dlg-head { display: flex; align-items: center; gap: 9px; padding: 12px 14px; border-bottom: 1px solid #141414; }
+.dlg-head svg { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.dlg-head b { font-weight: 400; color: #fff; overflow-wrap: anywhere; }
+.dlg-kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0 14px; margin: 0; }
+.dlg-kv dt, .dlg-kv dd { padding: 6px 0; border-bottom: 1px solid #141414; }
+.dlg-kv dt { padding-left: 14px; color: var(--dim); }
+.dlg-kv dd { min-width: 0; padding-right: 14px; color: var(--white); }
+.dlg-btns { display: flex; justify-content: flex-end; padding: 14px 14px 0; }
+.dlg-btns button { min-height: 36px; padding: 0 18px; border: 1px solid var(--focus); background: #000; color: #fff; font: inherit; font-size: 15px; cursor: pointer; }
+.fm .items dt:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
+
+/* ---- pcmanfm (2 fm): location bar, side pane, detailed list, status bar ---- */
+.fm-tool { flex: none; display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-bottom: 1px solid var(--line); font-size: 15px; }
+.fm-tool .glyph { color: var(--dim); letter-spacing: 6px; }
+.fm-tool .lb { color: var(--dim); }
+.fm-tool .path { flex: 1; min-width: 0; border: 1px solid var(--line); padding: 3px 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fm-body { flex: 1; display: grid; grid-template-columns: minmax(0, 10.5em) minmax(0, 1fr); }
+.places { border-right: 1px solid var(--line); padding: 10px 0; font-size: 15px; }
+.places h3 { padding: 0 12px 4px; font-size: 15px; font-weight: 400; color: var(--dim); }
+.places a { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 12px; text-decoration: none; }
+.places a.here { background: var(--line); }
+.places svg, .fm .items svg { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.fm-view { min-width: 0; }
+.fm-cols { display: grid; grid-template-columns: minmax(0, 11em) minmax(0, 1fr); gap: 0 14px; padding: 6px 14px; border-bottom: 1px solid var(--line); color: var(--dim); font-size: 15px; }
+.fm .sec > h2, .fm .sec > .lead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.fm-sbar .lead { position: static; width: auto; height: auto; overflow: hidden; clip-path: none; white-space: nowrap; text-overflow: ellipsis; display: inline; }
+.fm .items { display: grid; grid-template-columns: minmax(0, 11em) minmax(0, 1fr); gap: 0 14px; padding: 4px 0; font-size: 16px; }
+.fm .items dt, .fm .items dd { padding: 5px 0; border-bottom: 1px solid #141414; cursor: default; }
+.fm .items dt { display: flex; align-items: center; gap: 9px; padding-left: 14px; color: #fff; font-weight: 400; overflow-wrap: anywhere; }
+.fm .items dd { padding-right: 14px; color: var(--dim); }
+.fm .items .sel { background: var(--focus); color: #000; }
+.fm .items dd.sel code, .fm .items dd.sel kbd { color: #000; }
+.fm-sbar { flex: none; display: flex; gap: 10px; padding: 6px 12px; border-top: 1px solid var(--line); font-size: 15px; color: var(--dim); white-space: nowrap; overflow: hidden; }
+.fm-sbar .lead { color: #fff; }
+
+/* ---- 2 fm: one pcmanfm window, a tab per folder ---- */
+.fm-tabs { flex: none; display: flex; gap: 2px; padding: 6px 6px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+.fm-tab { min-height: 32px; padding: 0 16px; border: 1px solid var(--line); border-bottom: 0; background: #111; color: var(--dim); font: inherit; cursor: pointer; }
+.fm-tab[aria-selected="true"] { background: var(--line); color: #fff; }
+.fm-tab:focus-visible { outline-offset: -3px; }
+
+/* ---- urxvt: the terminals; mutt and irssi run in one, the term workspace holds two ---- */
+.term .wbody, .mutt .wbody, .irc .wbody { padding: 0; font: 19px/1.42 var(--mono); color: var(--white); }
+.term .sec { padding: 12px 16px 16px; }
+.term .sec > * + * { margin-top: 10px; }
+.term .sec > h2 { font-size: 19px; font-weight: 700; color: var(--bright); }
+.term .sec > h2::before { content: "# "; color: var(--grey); font-weight: 400; }
+.term .sec h3 { margin-top: 18px; font-size: 19px; font-weight: 700; color: var(--green); }
+.term .sec p { color: var(--dim); }
+.term .cmd { color: var(--bright); }
+.term .cmd code.off { color: #8f8f8f; }
+/* the chosen flavour's line is marked by a bar with its own room: a 3 px border and one character of gap before the $ */
+.term #install .cmd code { border-left: 3px solid transparent; padding-left: 3ch; text-indent: -2ch; }
+.term #install .cmd code.on { border-left-color: var(--green); }
+.term .runs { color: var(--white) !important; }
+.term .one { color: var(--green); }
+.flav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 0; }
+.flav-label { color: var(--grey); margin-right: 1.5ch; }
+.flav button { min-height: 36px; padding: 0 1.4ch; border: 1px solid var(--focus); background: #000; color: #fff; font: inherit; cursor: pointer; }
+.flav button + button { border-left: 0; }
+.flav button[aria-pressed="true"] { background: #fff; color: #000; font-weight: 700; }
+.flav-note { color: var(--dim); margin-left: 1.5ch; }
+.prompt { padding: 0 16px 16px; color: var(--bright); }
+.prompt b { font-weight: 400; color: var(--green); }
+.cursor { display: inline-block; width: 1ch; height: 1.1em; background: var(--white); vertical-align: -3px; }
+
+/* ---- mutt (3 mail): mutt-patched with its sidebar, the index over the pager, minos' muttrc colours ---- */
+.mutt .wbody { line-height: 1.38; }
+.mt-help, .mt-status, .mt-pstatus { flex: none; padding: 0 8px; white-space: pre; overflow: hidden; text-overflow: ellipsis; color: var(--bright); font-weight: 700; }
+.mt-help .k { color: var(--bright); }
+.mt-help span + span { margin-left: 2ch; }
+.mt-top { flex: none; display: grid; grid-template-columns: 16ch minmax(0, 1fr); }
+.mt-side { padding: 0 1ch 0 8px; border-right: 1px solid var(--grey); white-space: pre; color: var(--white); }
+.mt-side .new { color: var(--teal); }
+.mt-index { min-width: 0; }
+.mt-row { display: flex; width: 100%; min-height: 27px; padding: 0 8px; border: 0; background: none; color: var(--white); font: inherit; line-height: 1.42; text-align: left; white-space: pre; cursor: pointer; overflow: hidden; }
+.mt-row span { flex: none; }
+.mt-row .s { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mt-row.new { color: var(--teal); }
+.mt-row .tr { color: var(--red); }
+.mt-row[aria-current="true"] { background: var(--indicator); color: var(--bright); }
+.mt-row:focus-visible { outline-offset: -2px; }
+.mt-status { display: flex; }
+.mt-status .fill { flex: 1; min-width: 0; overflow: hidden; color: var(--bright); }
+.mt-pager { flex: 1; padding: 6px 8px 12px; }
+.mt-hdr div { white-space: pre-wrap; }
+.mt-hdr .f { color: var(--yellow); }
+.mt-hdr .t { color: var(--red); }
+.mt-hdr .d { color: var(--cyan); }
+.mt-hdr .s { color: var(--blue); }
+.mt-hdr { margin-bottom: 18px; }
+.mt-pager .sec { padding: 0; }
+.mt-pager .sec > h2, .mt-pager .sec > .lead, .mt-pager .sec > .after, .mt-pager .principles h3 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.mt-pager #principles:not(.on), .mt-pager #config:not(.on), .mt-pager .principles > li:not(.on) { display: none; }
+.mt-pager .principles li > * + *, .mt-pager #config > * + * { margin-top: 14px; }
+.mt-pager .line { color: var(--bright); font-weight: 700; }
+.mt-pager p { max-width: 72ch; }
+.mt-pager .cmd { color: var(--white); }
+.mt-pager #config .lead { position: static; width: auto; height: auto; overflow: visible; clip-path: none; white-space: normal; }
+.mt-pager .sig { margin-top: 22px; color: var(--grey); white-space: pre-wrap; }
+.mt-pstatus { color: var(--bright); }
+
+/* ---- irssi (4 im): the dark_winter theme minos ships in /etc/skel/.irssi ---- */
+.ir-topic { flex: none; padding: 0 8px; color: var(--blue); font-weight: 700; }
+.ir-buf { flex: 1; padding: 6px 8px; }
+.irc .sec > h2 { font-size: inherit; font-weight: 400; color: var(--white); }
+.irc .sec > .lead { display: none; }
+.ir-pre { color: var(--white); white-space: pre; }
+.ir-pre .tb { color: var(--blue); }
+.ir-pre .nb { color: #fff; }
+.ir-pre .nk { color: var(--teal); }
+.ir-pre .me { color: var(--magenta); }
+.irc .keys { display: grid; grid-template-columns: max-content max-content minmax(0, 1fr); gap: 0 2ch; }
+.irc .keys dt { display: contents; font-weight: 400; color: var(--bright); }
+.irc .keys dd { color: var(--white); min-width: 0; }
+.ir-info { color: var(--white); }
+.ir-info .bang { color: var(--grey); }
+.ir-info b { font-weight: 400; color: var(--cyan); }
+.ir-gap { height: 1.42em; }
+.ir-sbar { flex: none; padding: 0 8px; white-space: nowrap; overflow: hidden; color: var(--bright); }
+.ir-sbar .tb { color: var(--blue); }
+.ir-sbar .act { color: var(--teal); }
+.ir-input { flex: none; padding: 0 8px 4px; color: var(--white); }
+.ir-input .br { color: var(--grey); }
+
+/* ================= one screen per desk: from 1280 x 700 every desk is exactly the screen above the bar, and the
+   type of its programs follows the screen (15 px at 1280 x 700, 22.5 px at 1920 x 1080), so no desk needs the page
+   to scroll, from 1280 x 700 (and 1366 x 768, 1920 x 1080…) up. Past 1920 x 1080 the type stays (the owner,
+   2026-11-18), as a real minos desktop keeps its terminal's font on a larger screen: the windows get the room.
+   On 1 www and 5 term effects.js then grows the type further where the text would leave its windows short
+   (fill()), up to the size it reaches at 1920 x 1080 ================= */
+@media (min-width: 1280px) and (min-height: 700px) {
+  :root { --fit: clamp(15px, min(1.17vw, 2.1vh), 22.5px); }
+  .desk { height: calc(100vh - var(--bar)); min-height: 0; }
+  .term .wbody, .mutt .wbody, .irc .wbody { font-size: var(--fit); line-height: 1.25; }
+  .mutt .wbody { line-height: 1.2; }
+  .term .sec { padding: .5em .8em .6em; }
+  .term .sec > * + * { margin-top: .45em; }
+  .term .sec h3 { margin-top: .6em; }
+  .prompt { padding: 0 .8em .6em; }
+  .flav button { min-height: 1.9em; }
+  .mt-row { min-height: 0; line-height: 1.2; }
+  .mt-pager { padding: .3em .5em .5em; }
+  .mt-hdr { margin-bottom: .7em; }
+  .mt-pager .principles li > * + *, .mt-pager #config > * + * { margin-top: .55em; }
+  .mt-pager .sig { margin-top: .8em; }
+  .tiles.two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .gx .sec > * + * { margin-top: .25em; }
+  .gx .wbody { line-height: 1.16; padding: .45em .8em .5em; }
+  #www .tiles { gap: .5vw; padding: .5vw; }
+  .gx-dev .sec { columns: 3; column-gap: 1em; }
+  /* the map of the desks in two columns where each holds a whole line ("3 mail  what it stands for", 27 letters):
+     source then sets no taller row than about's */
+  .gx-source .guide { margin-top: .6em; }
+  .gx-source .guide ul { columns: 2 13.5em; column-gap: 1em; }
+  .gx-source .guide li { break-inside: avoid; }
+  .mpv .wbody { flex: 1 1 0; min-height: 0; aspect-ratio: auto; }
+  .tiles.films { grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); }
+  .ir-gap { height: .7em; }
+  .fm .items { font-size: var(--fit); line-height: 1.35; }
+  .fm .items dt, .fm .items dd { padding: .2em 0; }
+  .fm-tool, .fm-cols, .fm-sbar, .fm-tabs, .places { font-size: calc(var(--fit) * .94); }
+  .fm-tool { padding: .3em .6em; }
+  .fm-tool .path { padding: .15em .6em; }
+  .fm-tab { min-height: 1.9em; }
+  .fm-cols { padding: .25em 14px; }
+  .fm-sbar { padding: .3em .8em; }
+  .places { padding: .4em 0; }
+  .places a { min-height: 0; padding: .3em 12px; }
+}
+
+/* ================= phones and narrow windows: the tiles stack, the bar is six big buttons ================= */
+@media (max-width: 799px) {
+  :root { --bar: 56px; }
+  body { font-size: 16px; }
+  .desk { min-height: 0; }
+  /* the tall cut, no taller than the screen between the status row and the bar */
+  .mpv .wbody { aspect-ratio: 9 / 16; max-height: calc(100vh - var(--bar) - 110px); max-height: calc(100svh - var(--bar) - 110px); }
+  .osc button { height: 44px; min-width: 48px; font-size: 17px; line-height: 42px; }
+  .play { width: 64px; height: 64px; }
+  .play svg { width: 26px; height: 26px; }
+  .tiles.two, .tiles.even { grid-template-columns: minmax(0, 1fr); }
+  .title { min-height: 40px; line-height: 40px; font-size: 15px; }
+  .max { min-width: 48px; font-size: 17px; }
+  .bar { gap: 3px; padding: 0 3px 3px; align-items: flex-end; }
+  .wsl { flex: 1; gap: 3px; }
+  .wsb { flex: 1 1 0; min-width: 0; height: 48px; line-height: 46px; padding: 0; font-size: 15px; }
+  .maxnav button { height: 48px; min-width: 56px; font-size: 16px; }
+  /* the status climbs to the top of the page, like a phone's own */
+  /* positioned, so it stays above anything positioned in a desk */
+  .top { position: relative; z-index: 22; height: 34px; max-width: none; padding: 0 4px 0 8px; justify-content: space-between; border-bottom: 1px solid #111; }
+  .maxed .top { max-width: none; }
+  .status .opt { display: none; }
+  .top { font-size: 14px; gap: 6px; }
+  .status .blk { gap: 4px; }
+  .status .sep { padding: 0 4px; }
+  .status .nosep { padding-right: 5px; }
+  .switch-btn { height: 30px; }
+  .switch-cur { display: none; }
+  .switch-panel { bottom: auto; top: calc(100% + 6px); }
+  .term .wbody, .mutt .wbody, .irc .wbody { font-size: 16px; }
+  .term .sec { padding: 10px 12px 14px; }
+  .term .sec > h2, .term .sec h3 { font-size: 17px; }
+  .prompt { padding: 0 12px 14px; }
+  .gx .wbody { padding: 12px 14px 16px; font-size: 15px; }
+  .fm-tab { min-height: 40px; flex: 1; }
+  .fm-body { grid-template-columns: minmax(0, 1fr); }
+  .places { display: none; }
+  .fm-cols { display: none; }
+  .fm .items { grid-template-columns: minmax(0, 1fr); }
+  .fm .items dt { border-bottom: 0; padding: 8px 12px 0; font-weight: 700; }
+  .fm .items dd { padding: 0 12px 8px 41px; }
+  .mt-top { grid-template-columns: minmax(0, 1fr); }
+  .mt-side { display: none; }
+  .mt-row .dt, .mt-row .ln, .mt-row .fr { display: none; }
+  .mt-row { min-height: 40px; align-items: center; }
+  .mt-help .wide { display: none; }
+  .irc .keys { gap: 0 1ch; }
+  .ir-pre .ts { display: none; }
+}
+/* six buttons in under 360 px: "5 term" stays inside its button */
+@media (max-width: 359px) {
+  .wsb { font-size: 13px; }
+}
+@media (min-width: 800px) {
+  .mt-help .narrow { display: none; }
+}
+@media (hover: none) {
+  .mt-help .keyhelp { display: none; }
+}
+@media (hover: hover) {
+  .mt-help .taphelp { display: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .desk.on { animation: deskin .16s ease-out; }
+  @keyframes deskin { from { opacity: .4; } }
+  .cursor { animation: blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+}
+/* hover only where there is a pointer: on a touch screen a tapped control would stay lit */
+@media (hover: hover) {
+  a:hover { background: #fff; color: #000; text-decoration: none; }
+  html:not(.mesas-on) .toc a:hover { background: #fff; color: #000; }
+  .max:hover, .osc .mute:hover, .play:hover { background: #fff; color: #000; }
+  .wsb:hover { background: #fff; border-color: #fff; color: #000; }
+  .maxnav button:hover { background: #fff; color: #000; }
+  .switch-btn:hover { background: #fff; border-color: #fff; color: #000; }
+  .switch-btn:hover .switch-cur { color: #000; }
+  .switch-opt:hover { background: var(--line); }
+  .fm-tab:hover { color: #fff; }
+  .gx-btns button:hover, .dlg-btns button:hover { background: #fff; color: #000; }
+  .mt-row:hover { background: #1d1d1d; }
+  .mt-row[aria-current="true"]:hover { background: var(--indicator); }
+}

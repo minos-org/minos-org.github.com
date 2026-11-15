@@ -1,0 +1,23 @@
+/* Core base: what every theme sits on, and all a visitor gets when no theme loads. A few resets, the accessibility
+   utilities and what keeps the plain page readable on a phone; no colours, no type, no composition. */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; overflow-wrap: break-word; }
+img { max-width: 100%; height: auto; }
+[hidden] { display: none !important; }
+
+/* A command block keeps its spacing and wraps instead of pushing the page sideways. */
+.cmd { white-space: pre-wrap; overflow-wrap: anywhere; font-family: monospace; }
+.cmd code { display: block; }
+
+/* Read by screen readers, not shown; the skip link shows itself when focused. */
+.sr, .skip:not(:focus) {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+.skip:focus { position: fixed; z-index: 100; top: 8px; left: 8px; padding: 10px 14px; background: Canvas; color: CanvasText; }
+:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+/* Until a theme's effects have arranged the page (html.fx-wait, set by the bootstrap), nothing is painted, so the
+   visitor never sees the core rearranging itself; the bootstrap lifts it after 2.5 s whatever happens. */
+html.fx-wait body { visibility: hidden; }
