@@ -1,0 +1,7 @@
+# minos.io on GitHub Pages. Jekyll renders only what has front matter: index.html, through _layouts/default.html.
+# Everything else is copied byte for byte: the installer `setup` and its link `s` (what minos.io/s serves), the old
+# pages (404, error, find, irc, github, twitter) with their assets/, favicon.ico, and the site's core/, themes/ and
+# assets/minos.svg. `setup` and `s` must never be excluded nor given front matter.
+#
+# Nothing in this repository is private: the list below is empty on purpose (Jekyll skips .git and _ files itself).
+exclude: []

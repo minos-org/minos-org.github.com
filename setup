@@ -1,7 +1,9 @@
 #!/bin/sh
 
-VERSION="2022.02.12-11:03"
+VERSION="2026.11.23-18:59"
 LINER="$ sudo sh <(wget -qO- minos.io/s)"
+#live mode starts as a live CD's user, and sudo closes the descriptor `sh <(...)` would read the script from
+LIVE_LINER="$ wget -qO s minos.io/s && sudo sh s"
 
 ################################################################################
 # Colors #######################################################################
@@ -180,6 +182,9 @@ _get_release() {
         _grelease__release="${RELEASE}"
     elif command -v "lsb_release" 1>/dev/null 2>&1; then
         _grelease__release="$(lsb_release -cs)"
+    elif grep "^VERSION_CODENAME=" /etc/os-release >/dev/null 2>&1; then
+        #since 24.04 sources.list doesn't name the release anymore
+        _grelease__release="$(. /etc/os-release; printf "%s" "${VERSION_CODENAME}")"
     else
         if [ -f /etc/apt/sources.list ]; then
             _grelease__release="$(awk -F" " '/^deb .*/ {print $3; exit}' /etc/apt/sources.list)"
@@ -193,13 +198,24 @@ _get_release() {
     printf "%s\\n" "${_grelease__release}"
 }
 
-_get_release_number() {
-    case "${1}" in
-        xenial) _grn__number="16.04" ;;
-        bionic) _grn__number="18.04" ;;
-         focal) _grn__number="20.04" ;;
-    esac
-    printf "%s\\n" "${_grn__number}"
+_releases() { #supported releases, number and codename, the only place where they're listed:
+    #the LTS releases under Ubuntu's standard support (not the paid extended one)
+    printf "%s\\n" "22.04 jammy" "24.04 noble" "26.04 resolute"
+}
+
+_get_release_number() { #codename => number
+    _releases | awk -v release="${1}" '$2 == release {print $1}'
+}
+
+_get_release_codename() { #number or codename => codename
+    _releases | awk -v release="${1}" '$1 == release || $2 == release {print $2}'
+}
+
+_release_at_least() { #is the release $1 (codename) as new as $2 (number)?
+    _ratleast__number="$(_get_release_number "${1}")"
+    #a release missing in the list above is a newer one
+    [ -z "${_ratleast__number}" ] && return 0
+    awk -v release="${_ratleast__number}" -v since="${2}" 'BEGIN {exit !(release + 0 >= since + 0)}'
 }
 
 _get_arch() {
@@ -240,7 +256,7 @@ _fetch_file() {
 
         if [ -n "${_ffile__output}" ] && [ -f "${_ffile__output}" ]; then
             break
-        elif [ -z "${_ffile__output}"]; then
+        elif [ -z "${_ffile__output}" ]; then
             if [ -f "./$(_basename "${_ffile__url}")" ] || [ -f index.html ]; then
                 break
             fi
@@ -329,7 +345,7 @@ _apt_update() {
 _cmd() { #print and execute a command, exit on fail
     [ -z "${1}" ] && return 1
     printf "%s \\n" "    $ ${*}"
-    _cmd_var_output="$(eval ${@} 2>&1)"
+    _cmd_var_output="$(eval "${@}" 2>&1)"
     _cmd_var_status="${?}"
     if [ X"${_cmd_var_status}" != X"0" ]; then
         printf "> %s:%s" "${*}" "${_cmd_var_output}"
@@ -343,12 +359,12 @@ _cmd() { #print and execute a command, exit on fail
 _cmd_verbose() {
     [ -z "${1}" ] && return 1
     printf "%s \\n" "    $ ${*}"
-    $@ || _die "there was an error with the above command, exiting ..."
+    "${@}" || _die "there was an error with the above command, exiting ..."
 }
 
 _cmd_animate() { #print, execute and wait for a command to finish
     [ -z "${1}" ] && return 1
-    printf "%s " "    $ ${@} ..."
+    printf "%s " "    $ ${*} ..."
     eval "${@}" >/dev/null 2>&1 &
     sleep 1s
     _animate_while "${1}"
@@ -415,13 +431,25 @@ _header() {
     printf "\\n"
     printf "%b\\n" "${WHITE_BOLD} ${cx} Core         ${DEFAULT}${LINER} core"
     printf "%b\\n" "${WHITE_BOLD} ${dx} Desktop      ${DEFAULT}${LINER} desktop"
-    printf "%b\\n""${WHITE_BOLD} ${lcx} Live Core    ${DEFAULT}${LINER} live core    /dev/sdX username passwd [/dev/sdaY] "
-    printf "%b\\n""${WHITE_BOLD} ${ldx} Live Desktop ${DEFAULT}${LINER} live desktop /dev/sdX username passwd [/dev/sdaY]"
+    printf "%b\\n" "${WHITE_BOLD} ${lcx} Live Core    ${DEFAULT}${LIVE_LINER} live core    /dev/sdX username passwd [/dev/sdY]"
+    printf "%b\\n" "${WHITE_BOLD} ${ldx} Live Desktop ${DEFAULT}${LIVE_LINER} live desktop /dev/sdX username passwd [/dev/sdY]"
     printf "\\n\\n"
     printf "%s\\n" "  /dev/sdX → /     mount point"
     printf "%s\\n" "  /dev/sdY → /home mount point (optional)"
+    printf "%s\\n" "                   live: ext4, btrfs (/ goes to its subvolume @, /home without sdY to @home) or xfs"
+    printf "%s\\n" "  --esp /dev/sdZ → /boot/efi, the EFI system partition (UEFI; found on the disk of / when not given)"
+    printf "%s\\n" "  --firmware uefi|bios → live: the firmware the new system boots by; when not given, the one this session"
+    printf "%s\\n" "                   booted by. bios puts GRUB on the disk of / and nothing for EFI, from a session booted"
+    printf "%s\\n" "                   by UEFI too: a disk made here for a machine that boots by BIOS"
+    printf "%s\\n" "  passwd -       → the password is read from the standard input, a line, and is on no command line"
+    printf "%s\\n" "  --now          → live: start at once, without the seconds to cancel (who calls has asked already)"
+    printf "%s\\n" "  --keyboard LAYOUT[:VARIANT] → live: the new system's keyboard, an xkb layout (us, latam, de:nodeadkeys);"
+    printf "%s\\n" "                   when not given, the one of the system this runs from (/etc/default/keyboard),"
+    printf "%s\\n" "                   or latam when it says none"
+    printf "%s\\n" "  --timezone ZONE → live: the new system's time zone (Europe/Madrid); when not given, the one of the"
+    printf "%s\\n" "                   system this runs from (what its /etc/localtime links to), or America/Mexico_City"
     printf "\\n"
-    printf "%s\\n" "  --release  [16.04|18.04|20.04]"
+    printf "%s\\n" "  --release  [$(_releases | awk '{printf "%s%s", separator, $1; separator = "|"}')]"
     _printfl
 }
 
@@ -443,13 +471,20 @@ _cleanup() {
     [ -z "${1}" ] && exit
 }
 
+_is_distro_rep() { #the release's own sources, since 24.04 they live beside the third party ones
+    case "${1}" in
+        */ubuntu.sources|*/debian.sources) return 0 ;;
+    esac
+    return 1
+}
+
 _backup_original_reps() { #create a backup of /etc/apt/sources.list.d/* files
-    for _boreps__file in /etc/apt/sources.list.d/*.list; do
-        break
-    done
-    [ -f "${_boreps__file}" ] && _printfs "disabling temporaly non standard repos ..."
-    for _boreps__file in /etc/apt/sources.list.d/*.list; do
+    _boreps__notified=""
+    for _boreps__file in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+        _is_distro_rep "${_boreps__file}" && continue
         if [ -f "${_boreps__file}" ]; then
+            [ -z "${_boreps__notified}" ] && _printfs "disabling temporaly non standard repos ..."
+            _boreps__notified="done"
             _cmd mv "${_boreps__file}" "${_boreps__file}".backup_rep
         fi
     done
@@ -457,18 +492,77 @@ _backup_original_reps() { #create a backup of /etc/apt/sources.list.d/* files
 }
 
 _recover_original_reps() { #recover files at /etc/apt/sources.list.d/*
-    for _roreps__file in /etc/apt/sources.list.d/*.list.backup_rep; do
-        break
-    done
-    [ -f "${_roreps__file}" ] && _printfs "recovering non standard repos ..."
-    for _roreps__file in /etc/apt/sources.list.d/*.list.backup_rep; do
+    _roreps__notified=""
+    for _roreps__file in /etc/apt/sources.list.d/*.backup_rep; do
         if [ -f "${_roreps__file}" ]; then
+            [ -z "${_roreps__notified}" ] && _printfs "recovering non standard repos ..."
+            _roreps__notified="done"
             _cmd mv "${_roreps__file}" "${_roreps__file%.backup_rep}"
         fi
     done
 }
 
+_apt_sources() { #print every enabled apt source as one line entries, deb822 files included
+    grep -h "^deb " /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null
+    for _asources__file in /etc/apt/sources.list.d/*.sources; do
+        [ -f "${_asources__file}" ] || continue
+        awk '
+            function field() { sub(/^[^:]*:[ \t]*/, ""); return $0 }
+            function flush(   i, j, uris_n, suites_n, uri, suite) {
+                if (types ~ /(^| )deb( |$)/ && enabled !~ /^(no|false|0)$/) {
+                    uris_n = split(uris, uri, " "); suites_n = split(suites, suite, " ")
+                    for (i = 1; i <= uris_n; i++)
+                        for (j = 1; j <= suites_n; j++)
+                            print "deb " uri[i] " " suite[j] " " components
+                }
+                types = uris = suites = components = enabled = ""
+            }
+            /^[ \t]*$/                     { flush(); next }
+            tolower($0) ~ /^types:/        { types      = field() }
+            tolower($0) ~ /^uris:/         { uris       = field() }
+            tolower($0) ~ /^suites:/       { suites     = field() }
+            tolower($0) ~ /^components:/   { components = field() }
+            tolower($0) ~ /^enabled:/      { enabled    = tolower(field()) }
+            END                            { flush() }
+        ' "${_asources__file}"
+    done
+}
+
+_apt_reads_armored_keys() { #apt reads ascii armored keys since 1.4, before that only apt-key does
+    dpkg --compare-versions "$(dpkg-query -W -f='${Version}' apt 2>/dev/null)" ge "1.4"
+}
+
+_install_apt_key() { #trust a repository key, set _iakey__keyring when it gets tied to its repository
+    #$1 key: an ascii armored file, an url or a key id, $2 repository name
+    [ -z "${2}" ] && return 1
+    _iakey__keyring=""
+    _iakey__file="/tmp/${2}.asc"
+
+    case "${1}" in
+        /*) _iakey__file="${1}" ;;
+        http://*|https://*) _fetch_file "${1}" "${_iakey__file}" ;;
+        *)  #a key id, only apt-key can fetch it and apt 3 comes without apt-key
+            command -v "apt-key" >/dev/null 2>&1 || \
+                _die "apt-key is gone, give ${2} its key as a file or as an url instead of ${1}"
+            _cmd_verbose apt-get install --no-install-recommends -y gnupg
+            _cmd_verbose apt-key adv --keyserver keyserver.ubuntu.com --recv-keys "${1}"
+            return 0 ;;
+    esac
+
+    [ -f "${_iakey__file}" ] || _die "Repository key not found: ${1}"
+
+    if _apt_reads_armored_keys; then
+        _cmd mkdir -p /etc/apt/keyrings
+        _cmd cp "${_iakey__file}" /etc/apt/keyrings/"${2}".asc
+        _cmd chmod 644 /etc/apt/keyrings/"${2}".asc
+        _iakey__keyring="/etc/apt/keyrings/${2}.asc"
+    else
+        _cmd_verbose apt-key add "${_iakey__file}"
+    fi
+}
+
 _add_repository() { #ensure rep is enabled
+    #$1 one line apt entry, $2 its key (optional): an ascii armored file, an url or a key id
     [ -z "${1}" ] && return 1
     [ -z "${2}" ] && _arepository__key="" || _arepository__key="${2}"
 
@@ -478,19 +572,7 @@ _add_repository() { #ensure rep is enabled
     fi
 
     [ ! -d /etc/apt/sources.list.d ] && _cmd mkdir /etc/apt/sources.list.d
-    if [ -z "${_arepository__list}" ]; then
-        _arepository__extras=/etc/apt/sources.list.d/*.list
-
-        for _arepository__extra in ${_arepository__extras}; do
-            break
-        done
-
-        if [ -e "${_arepository__extra}" ]; then
-            _arepository__list="$(grep -h ^deb /etc/apt/sources.list /etc/apt/sources.list.d/*.list)"
-        else
-            _arepository__list="$(grep -h ^deb /etc/apt/sources.list)"
-        fi
-    fi
+    [ -z "${_arepository__list}" ] && _arepository__list="$(_apt_sources)"
 
     case "${_arepository__baseurl}" in
         *archive.ubuntu.com*)
@@ -513,20 +595,22 @@ _add_repository() { #ensure rep is enabled
             ;;
     esac
 
+    #a ppa is the same one over http or https, at its old or at its new host
+    case "${_arepository__baseurl}" in
+        *ppa.launchpad.net/*|*ppa.launchpadcontent.net/*)
+            _arepository__regex="$(printf "%s" "${_arepository__baseurl}" | sed 's|^.*://[^/]*/||')" ;;
+    esac
+
     if ! printf "%s" "${_arepository__list}" | grep "${_arepository__regex}" >/dev/null; then
-        printf "%s\\n" "${1}" > /tmp/"${_arepository__name}".list
-        _cmd mv /tmp/"${_arepository__name}".list /etc/apt/sources.list.d/
+        _arepository__entry="${1}"
         if [ -n "${_arepository__key}" ]; then
-            if printf "%s" "${_arepository__key}" | grep "http" >/dev/null; then
-                _fetch_file ${_arepository__key} /tmp/keyfile.asc
-                _cmd_verbose apt-key add /tmp/keyfile.asc
-                _cmd_verbose rm -rf /tmp/keyfile.asc
-            else
-                _cmd_verbose apt-get install --no-install-recommends -y gnupg
-                _cmd_verbose apt-key adv --keyserver keyserver.ubuntu.com \
-                    --recv-keys "${_arepository__key}"
+            _install_apt_key "${_arepository__key}" "${_arepository__name}"
+            if [ -n "${_iakey__keyring}" ]; then
+                _arepository__entry="$(printf "%s" "${1}" | sed "s|^deb |deb [signed-by=${_iakey__keyring}] |")"
             fi
         fi
+        printf "%s\\n" "${_arepository__entry}" > /tmp/"${_arepository__name}".list
+        _cmd mv /tmp/"${_arepository__name}".list /etc/apt/sources.list.d/
     fi
 }
 
@@ -558,9 +642,56 @@ _tweak_apt_get() {
     #_install_apt_proxy
 }
 
+_minos_archive_key() { #ppa:minos-archive/main, 4076 B496 03F6 EDC1 550E  12B7 4A06 4064 69B4 B061
+    cat << 'E=O=F'
+-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+mQINBFOb1uIBEADS1cpiRfBbTw/nts2qNquSNJIoX6wLHWGMyf3A/Edami5o/kiO
+qdboF3dd9I6IdHebpVBe+wTsAlWBnd7GihkYLSjkfhJC8i6Z/PezZ1otYFPYtzP3
+o14+oL/r1eCch4IyJqqnvKfyrziCnAtEuPjyFHNeBg8HwJRRd7jg/86MgAwZ+y9a
+bycgrtkpy50ZwnhtlGX7zPmhnhlGywzXTsrA29RSMHmvdmU9GdDdk9hS9ARvsAHe
+d7MFMncBE0ynUghTPvPC5lq47QSusEipMywSfakn8GvMAZfpLaG1Pp+59wjEhTVq
+iZht9PTGZGda//9r9NC+heaY8RSliOnue7VfYoDDqt/dEz5nYM84NknBTLSgibu/
+Fic0VjVpZUM4t1eHNgPjxsd0rKiY2iTyi2wVKcAbNZDsHf7vNYI2PvUWyD/Ikzkc
+xf48ToJXnaS0Jym/dvV6gUHCT5UM9RwW2RJEdQ74xeCSKin9YJPhdZQJynGiGOa8
+ADCHvclrV44lq4kdnjCGHpWKrAQIXxoByAXNJx7cs6rldVf4HZBLjl/JERUnPWhm
+IiHdRXlb1CCA3bVCHtufWW6/FhpEyNcxxH+QLyTyVt81GaDDM4ThFqDQr7M3+Nfo
+m2ejsmM7A43n++D8rQRqZg1oYtKSswD1fjvN9RKWtDEqtIWWSV1Ogn4DFQARAQAB
+tB9MYXVuY2hwYWQgUFBBIGZvciBNaW5vcyBhcmNoaXZliQJPBBMBCgA5AhsDBgsJ
+CAcDAgYVCAIJCgsEFgIDAQIeAQIXgBYhBEB2tJYD9u3BVQ4St0oGQGRptLBhBQJq
+x5r7AAoJEEoGQGRptLBh3wYQAJuCbuSUWzs2/qFvdINuHVyrwQhnKExHzAnB0wZo
+sIOcCyqnSaCJu3syIr20xmIUsvhbFU6YFLpvj/vaedlzJifrkaF+bqBYIL0eUJMp
+sVC1fcLX2dNOTir1IpKnyTU1pnJ6LaG1ksFwgxzRI5s6nWtHSP60ofyh0t6+LrRh
+u9QJXyUeNZjXm9eReX5CtioMJSmsUFeJOienUjuWY10A5aqTgqrKSYdOskqkuNHo
+k2F+cXI7dRiEs2FLZ0Q6DZOBP7LXIxTcdQ8lP6AyuPosh+DoccHRiup/y4zVtVLR
+uDnfbpod3Lv+jJr0M9Aiva4bLQjL7/kc9RdSSM8UhfgUtDotjG9TvLq0+XmDxS3H
+c5WWlGAK/hjYNAVB9EpvIyMJ3NjkZRBvWGwQL6r3jUsPY1y6B6IPEzpZnjPhYQhS
+Ld5gAOirrhO5ukBnHrX+z3ijv5VBksh2gpHUVQr++GxcTgx99tNfq6XsdcltmzS5
+6WkqCUzOQRUd1ugmFTrKrShUBryY3jBwGUkhRy+HP5s3+YnPTM/TN5ThDyJxMTh5
+kUaPUyuD3i3WLWmlVVjm4FKqzJujNiJIHg0MSCdJ2+3JUnVdRI+oStEbMxCruPCi
+OuHA/vEnUKmExI88OxJnC4mXuT54xIvfWcvhHbYqO5ESxYCa97Z36bsIdL5h67OH
+hnXsiQI4BBMBAgAiBQJTm9biAhsDBgsJCAcDAgYVCAIJCgsEFgIDAQIeAQIXgAAK
+CRBKBkBkabSwYRCZEADJf/ef9lidCL63tnXBRVvi0TVwBwFxJqXDwpaxqYXjzJDZ
+vapaBAASFfRfveJINmY/Mos7+CR2/XawGqI9fKyIJ2kmHb1A7FRnLd6aEdKeP4Kr
+jHxRptd4ZCmuPf8itJZgyPu38Bk/JsB/lpqMu13LhVvPUvvGJk+725opjfc19zUa
++le5RtOC4lLSTYLAJXShdsHRWELIJu2hvJoFKv6R71XlCZf/YPMIbb8cgRGK3BQw
+jCg7Cr0U++WQ/ahULyxYk8qV3225yvEFkCZOjfx3LZuYMj6+JfftGUfZRAXiMOqr
+CjmjEUG238js8MgJqpaBJDanyx3tZcNzn0zwaAoH+e/Gr11ryMaR0iqZzFsCVWyU
+4O2K4AnXmtFhIpJfViRVUP8/tnC+otm5iG5Ktt9aZWkcHHYATMa1WE3WGJK24LvS
+gXiRuqxaBrxQZZEa2v+upWwD5p1f6vc7rfK8lCkFFn/iuyxaJezOvl8jGxW2k6Fh
+w1LmN5f8MVE57EJjUkFKv3nkwlpPJva9PHj4vExSWyn/3T+tZ/tStWTakdsuKYTY
+l/Sz6cl71Q1qY1/V0qcM471J5GgFIiBMrs+uxiYRMsZg8vNSSwERC9UMxCa5Ufew
+5V2Zfl2kgFrFa+svW+O7YfPQJ70vmdlQzW+ki3nFXPR/EZlecbF2TL0bTwHJqA==
+=Xyqe
+-----END PGP PUBLIC KEY BLOCK-----
+E=O=F
+}
+
 _add_minos_repository() {
     _printfl "Adding repositories"
-    _add_repository "deb http://ppa.launchpad.net/minos-archive/main/ubuntu ${1} main" "4A06406469B4B061"
+    _minos_archive_key > /tmp/minos-archive.asc
+    _add_repository "deb http://ppa.launchpad.net/minos-archive/main/ubuntu ${1} main" /tmp/minos-archive.asc
+    _cmd rm -f /tmp/minos-archive.asc
     _add_repository "deb http://archive.ubuntu.com/ubuntu/ ${1} multiverse"
     _add_repository "deb http://archive.ubuntu.com/ubuntu/ ${1}-updates multiverse"
     _apt_update 0
@@ -572,15 +703,125 @@ _install_debootstrap() {
 
     (
         _cmd_verbose cd "${_idebootstrap__tmpdir}"
-        #https://packages.ubuntu.com/focal/debootstrap
-        _cmd_verbose wget -q http://mirrors.kernel.org/ubuntu/pool/main/d/debootstrap/debootstrap_1.0.118ubuntu1_all.deb
-        _cmd_verbose busybox ar -x debootstrap_1.0.118ubuntu1_all.deb
+        #https://packages.ubuntu.com/resolute/debootstrap, the one that knows every release at _releases
+        _cmd_verbose wget -q http://mirrors.kernel.org/ubuntu/pool/main/d/debootstrap/debootstrap_1.0.142ubuntu1_all.deb
+        _cmd_verbose busybox ar -x debootstrap_1.0.142ubuntu1_all.deb
         _cmd_verbose cd /
         _cmd_verbose tar zxf "${_idebootstrap__tmpdir}/data.tar.gz"
     )
 
     _cmd_verbose command -v "debootstrap"
     _cmd_verbose rm -rf "${_idebootstrap__tmpdir}"
+}
+
+_umount_tree() { #unmount $1 and everything mounted below it, the deepest first
+    [ -z "${1}" ] && return 1
+    awk -v top="${1}" '$2 == top || index($2, top "/") == 1 {print $2}' /proc/mounts | LC_ALL=C sort -r | \
+        while read -r _utree__point; do
+            umount "${_utree__point}" 2>/dev/null || umount -l "${_utree__point}"
+        done
+}
+
+_disk_of_partition() { #a partition => the disk it is on, as sysfs knows it: /dev/sda2 => /dev/sda, /dev/nvme0n1p2 => /dev/nvme0n1
+    _dopartition__name="$(readlink -f "${1}")"; _dopartition__name="${_dopartition__name##*/}"
+    [ -f "/sys/class/block/${_dopartition__name}/partition" ] || return 1
+    _dopartition__disk="$(dirname "$(readlink -f "/sys/class/block/${_dopartition__name}")")"
+    _dopartition__disk="/dev/${_dopartition__disk##*/}"
+    [ -b "${_dopartition__disk}" ] || return 1
+    printf "%s\\n" "${_dopartition__disk}"
+}
+
+_disk_id() { #a disk => its /dev/disk/by-id name, which stays this disk when another one takes its /dev name
+    for _did__link in /dev/disk/by-id/*; do
+        [ -L "${_did__link}" ] || continue
+        if [ X"$(readlink -f "${_did__link}")" = X"$(readlink -f "${1}")" ]; then
+            printf "%s\\n" "${_did__link}"
+            return 0
+        fi
+    done
+    printf "%s\\n" "${1}"
+}
+
+_blkid_tag() { #$1 device, $2 tag (UUID, TYPE) => its value; blkid of util-linux or of busybox
+    blkid "${1}" 2>/dev/null | sed -n "s/.* ${2}=\"\\([^\"]*\\)\".*/\\1/p"
+}
+
+_find_esp() { #a disk => its EFI system partition (GPT type c12a7328-..., MBR type ef), when it has one
+    command -v lsblk >/dev/null 2>&1 || return 1
+    lsblk -lnpo NAME,PARTTYPE "${1}" 2>/dev/null | awk '
+        tolower($2) == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" || tolower($2) == "0xef" {print $1; exit}'
+}
+
+_copy_running_setup() { #$1 file: this very script, for the step that runs inside the chroot
+    if [ -f "${0}" ] && grep "^VERSION=\"${VERSION}\"" "${0}" >/dev/null 2>&1; then
+        _cmd_verbose cp "${0}" "${1}"
+    else
+        #read from a pipe (wget -qO- minos.io/s | sudo sh -s), what ran cannot be read again
+        _printfs "this script came through a pipe, fetching it again for the step inside ..."
+        _cmd_verbose wget -qO "${1}" minos.io/s
+    fi
+}
+
+_guard_tmpfiles() { #$1 target, $2 its directories mounted from this machine => until _unguard_tmpfiles, the
+    #target's systemd-tmpfiles leaves them alone. The postinsts of systemd and udev run systemd-tmpfiles --create
+    #in the chroot, and rules like "z /dev/kvm 0660 - kvm -" would give this machine's own nodes the target's
+    #modes and group ids. The real one is diverted by the name dpkg knows it by (/bin on 22.04, /usr/bin after),
+    #so an upgrade inside writes there and leaves the wrapper; the installed system applies every rule at boot
+    _gtmpfiles__target="${1}"
+    _gtmpfiles__path="$(awk '/^\/(usr\/)?bin\/systemd-tmpfiles$/ {print; exit}' "${_gtmpfiles__target}"/var/lib/dpkg/info/*.list)"
+    [ -n "${_gtmpfiles__path}" ] || _die "${_gtmpfiles__target} has no systemd-tmpfiles in dpkg's lists, and its rules would reach this machine's ${2}"
+    _cmd_verbose chroot "${_gtmpfiles__target}" dpkg-divert --local --rename --divert "${_gtmpfiles__path}.distrib" \
+        --add "${_gtmpfiles__path}"
+    _gtmpfiles__diverted="${_gtmpfiles__path}"
+    _gtmpfiles__exclude=""
+    for _gtmpfiles__dir in ${2}; do _gtmpfiles__exclude="${_gtmpfiles__exclude} --exclude-prefix=${_gtmpfiles__dir}"; done
+    printf "%s\\n" "#!/bin/sh" "#minos.io/s live: ${2} are the machine's that runs it, their rules wait for the first boot" \
+        "exec ${_gtmpfiles__path}.distrib${_gtmpfiles__exclude} \"\${@}\"" > "${_gtmpfiles__target}${_gtmpfiles__path}"
+    _cmd_verbose chmod 755 "${_gtmpfiles__target}${_gtmpfiles__path}"
+}
+
+_unguard_tmpfiles() { #$1 target => the real systemd-tmpfiles back where _guard_tmpfiles found it, no diversion
+    [ -n "${_gtmpfiles__diverted}" ] || return 0
+    _printfc "rm -f ${1}${_gtmpfiles__diverted}; chroot ${1} dpkg-divert --remove ${_gtmpfiles__diverted}"
+    if rm -f "${1}${_gtmpfiles__diverted}" && chroot "${1}" dpkg-divert --local --rename \
+        --divert "${_gtmpfiles__diverted}.distrib" --remove "${_gtmpfiles__diverted}"; then
+        _gtmpfiles__diverted=""
+    else
+        printf "%b\\n" "${RED}${1}${_gtmpfiles__diverted} is still diverted to ${_gtmpfiles__diverted}.distrib${DEFAULT}" >&2
+        return 1
+    fi
+}
+
+_is_minos_live() { #is this the live session of the minos ISO? casper's read-only system mounted on /rofs,
+    #the ISO's list of what only its live session needs in it, and the boot loaders' packages on the medium
+    awk '$2 == "/rofs" {found = 1} END {exit !found}' /proc/mounts && [ -f /rofs/var/lib/minos/live-only ] && \
+        [ -f /cdrom/minos/bootloader/bios.list ] && [ -f /cdrom/minos/bootloader/uefi.list ]
+}
+
+_copy_live_system() { #$1 target: the minos ISO's system copied to it as it was built (casper's /rofs, not the
+    #session's changes over it), less what only the live session needs: each path the ISO lists in
+    #/var/lib/minos/live-only gets back the copy kept in live-only.d, or goes when there is none (a file the
+    #live session added). The boot loaders' packages of the medium go to the target's /tmp
+    _clsystem__target="${1}"
+    _printfs "copying the live system, $(($(cat /cdrom/casper/filesystem.size 2>/dev/null || printf 0) / 1048576)) MiB ..."
+    _cmd_verbose cp -a /rofs/. "${_clsystem__target}/"
+    #said in one line, not a command a path: the ISO lists every file it added, each link of a plugin too
+    _clsystem__back=0; _clsystem__gone=0
+    while read -r _clsystem__path; do
+        [ -n "${_clsystem__path}" ] || continue
+        rm -f "${_clsystem__target}${_clsystem__path}" || _die "cannot remove ${_clsystem__target}${_clsystem__path}"
+        if [ -e "/rofs/var/lib/minos/live-only.d${_clsystem__path}" ] || \
+           [ -L "/rofs/var/lib/minos/live-only.d${_clsystem__path}" ]; then
+            cp -a "/rofs/var/lib/minos/live-only.d${_clsystem__path}" "${_clsystem__target}${_clsystem__path}" || \
+                _die "cannot put ${_clsystem__target}${_clsystem__path} back as it was"
+            _clsystem__back="$((_clsystem__back + 1))"
+        else
+            _clsystem__gone="$((_clsystem__gone + 1))"
+        fi
+    done < /rofs/var/lib/minos/live-only
+    _printfs "what only the live session needed: ${_clsystem__back} files put back as they were, ${_clsystem__gone} removed"
+    _cmd_verbose rm -rf "${_clsystem__target}/var/lib/minos/live-only" "${_clsystem__target}/var/lib/minos/live-only.d"
+    _cmd_verbose cp -a /cdrom/minos/bootloader "${_clsystem__target}/tmp/minos-bootloader"
 }
 
 ################################################################################
@@ -623,6 +864,10 @@ _desktop() {
     _cmd_verbose apt-get install --no-install-recommends -y --force-yes minos-desktop
     #[ -d "${HOME}"/.gvfs ] && fusermount -u "${HOME}"/.gvfs
     _recover_original_reps
+    #connman manages the network from now on: the wired cards leave networkd, which live mode gave them on a core
+    if [ -f /etc/netplan/01-minos-wired.yaml ]; then
+        _cmd rm -f /etc/netplan/01-minos-wired.yaml
+    fi
 
     _printfl "DONE"
     printf   "\\n%s\\n" "Restart your computer to get started, have fun!, n@n/"
@@ -634,140 +879,263 @@ _live() {
     _live__arch="$(_get_arch)"
     _live__root_partition="${root_partition}"
     _live__home_partition="${home_partition}"
-    _live__grub_partition="$(printf "%s\\n" "${_live__root_partition}"|sed 's:[0-9]::g')"
+    _live__esp_partition="${esp_partition}"
     _live__username="${username}"
     _live__passwd="${passwd}"
     _live__tmp_mnt="/minos"
+    #wicd left ubuntu at focal, and since then the initramfs has to be generated by hand
+    _live__since_focal=""
+    _release_at_least "${_live__release}" "20.04" && _live__since_focal="yes"
     _live__swap="$(blkid|awk '/swap/&&/PART/{print $1;exit;}'|sed 's/://g')"
     _live__secs="10"
+
+    #the keyboard and the time zone of the new system are the ones of the system this runs from, where
+    #the password was typed and the clock was read: the live session's. --keyboard names another keyboard
+    #(the one an X session was changed to, which no file says) and --timezone another zone (the one an
+    #installer asked for). When that system says neither, minos' own: latam and America/Mexico_City
+    _live__keyboard_layout="${keyboard%%:*}"; _live__keyboard_variant=""
+    case "${keyboard}" in *:*) _live__keyboard_variant="${keyboard#*:}" ;; esac
+    if [ -z "${_live__keyboard_layout}" ] && [ -f /etc/default/keyboard ]; then
+        _live__keyboard_layout="$(sed -n 's/^XKBLAYOUT="\{0,1\}\([^",]*\).*/\1/p' /etc/default/keyboard | head -n 1)"
+        _live__keyboard_variant="$(sed -n 's/^XKBVARIANT="\{0,1\}\([^",]*\).*/\1/p' /etc/default/keyboard | head -n 1)"
+    fi
+    case "${_live__keyboard_layout}${_live__keyboard_variant}" in
+        *[!a-zA-Z0-9_-]*) _die "the keyboard ${_live__keyboard_layout}:${_live__keyboard_variant} is no xkb layout and variant" ;;
+    esac
+    _live__keyboard_layout="${_live__keyboard_layout:-latam}"
+    _live__timezone="${timezone}"
+    if [ -n "${_live__timezone}" ]; then
+        case "${_live__timezone}" in *[!a-zA-Z0-9_+/-]*|/*) _die "${_live__timezone} is no time zone" ;; esac
+        #asked of this system's zones when it has any: on the minos ISO the new system is a copy of it
+        [ ! -d /usr/share/zoneinfo ] || [ -f "/usr/share/zoneinfo/${_live__timezone}" ] || \
+            _die "${_live__timezone} is no time zone of /usr/share/zoneinfo"
+    else
+        #the zone the clock of this system follows, by the name it was set with; /etc/timezone when
+        #/etc/localtime is a copy of a zone, which has no name
+        _live__timezone="$(readlink /etc/localtime 2>/dev/null | sed -n 's|^.*/zoneinfo/||p')"
+        [ -n "${_live__timezone}" ] || _live__timezone="$(cat /etc/timezone 2>/dev/null)"
+        case "${_live__timezone}" in ""|*[!a-zA-Z0-9_+/-]*) _live__timezone="America/Mexico_City" ;; esac
+    fi
+
+    #grub goes to the disk of /, named the way sysfs names it (/dev/nvme0n1p2 is on /dev/nvme0n1)
+    _live__disk="$(_disk_of_partition "${_live__root_partition}")" || \
+        _die "${_live__root_partition} is not a partition of a disk, grub would have nowhere to go"
+
+    #fstab names file systems by UUID: /dev/sdX changes when another disk is plugged in
+    _live__root_uuid="$(_blkid_tag "${_live__root_partition}" UUID)"
+    [ -n "${_live__root_uuid}" ] || _die "${_live__root_partition} has no file system, format it first: mkfs.ext4 ${_live__root_partition}"
+    _live__home_uuid=""
+    if [ -n "${_live__home_partition}" ]; then
+        _live__home_uuid="$(_blkid_tag "${_live__home_partition}" UUID)"
+        [ -n "${_live__home_uuid}" ] || _die "${_live__home_partition} has no file system, format it first: mkfs.ext4 ${_live__home_partition}"
+    fi
+    #and by what they hold: btrfs and xfs as themselves, btrfs with the subvolumes @ for / and, when /home
+    #has no partition of its own, @home for it, the layout Ubuntu's snapshot tools expect; anything else as
+    #ext4, as it always was
+    _live__root_fs="$(_blkid_tag "${_live__root_partition}" TYPE)"
+    _live__home_fs=""
+    [ -z "${_live__home_partition}" ] || _live__home_fs="$(_blkid_tag "${_live__home_partition}" TYPE)"
+    if [ X"${_live__root_fs}" = X"btrfs" ]; then
+        command -v btrfs >/dev/null 2>&1 || \
+            _die "${_live__root_partition} is btrfs, and its subvolumes are made with btrfs: install btrfs-progs first"
+    fi
+    #a system bootstrapped gets their tools, which check them at boot (fsck) and keep them up
+    _live__fs_tools=""
+    for _live__fs in ${_live__root_fs} ${_live__home_fs}; do
+        case "${_live__fs}" in
+            btrfs) _live__fs_tools="${_live__fs_tools} btrfs-progs" ;;
+            xfs)   _live__fs_tools="${_live__fs_tools} xfsprogs" ;;
+        esac
+    done
+    _live__swap_uuid=""
+    [ -n "${_live__swap}" ] && _live__swap_uuid="$(_blkid_tag "${_live__swap}" UUID)"
+
+    #the installed system boots the way this live session booted, or by the firmware --firmware names: a
+    #disk made on a machine booted by UEFI for one that boots by BIOS. What this session booted by still
+    #says whether a boot entry can be written: there is an NVRAM to write it to only on UEFI
+    _live__session_firmware="BIOS"
+    [ ! -d /sys/firmware/efi ] || _live__session_firmware="UEFI"
+    case "${firmware}" in
+        uefi) _live__firmware="UEFI"; _live__firmware_why="--firmware ${firmware}" ;;
+        bios) _live__firmware="BIOS"; _live__firmware_why="--firmware ${firmware}" ;;
+           *) _live__firmware="${_live__session_firmware}"; _live__firmware_why="the way this session booted" ;;
+    esac
+    _live__esp_uuid=""; _live__no_nvram=""
+    if [ X"${_live__firmware}" = X"UEFI" ]; then
+        [ X"${_live__arch}" = X"amd64" ] || _die "UEFI installs are amd64 only, this is ${_live__arch}"
+        [ X"${_live__session_firmware}" = X"UEFI" ] || _live__no_nvram=" --no-nvram"
+        [ -z "${_live__esp_partition}" ] && _live__esp_partition="$(_find_esp "${_live__disk}")"
+        [ -n "${_live__esp_partition}" ] || _die "UEFI boots from an EFI system partition and ${_live__disk} has none:" \
+            "create one (FAT32, type EFI System) or name it with --esp"
+        [ X"$(_blkid_tag "${_live__esp_partition}" TYPE)" = X"vfat" ] || \
+            _die "${_live__esp_partition} is not FAT, format it first: mkfs.vfat -F 32 ${_live__esp_partition}"
+        _live__esp_uuid="$(_blkid_tag "${_live__esp_partition}" UUID)"
+        _live__grub_packages="grub-efi-amd64 grub-efi-amd64-signed shim-signed efibootmgr"
+        _live__bootloader_list="uefi.list"
+        _live__disk_id=""
+    else
+        [ -z "${_live__esp_partition}" ] || _die "--esp is for UEFI, and the new system boots by BIOS (${_live__firmware_why})"
+        _live__grub_packages="grub-pc grub2-common"
+        _live__bootloader_list="bios.list"
+        #grub-pc installs itself again on its upgrades, to the disk named here: by id, so it stays this disk
+        _live__disk_id="$(_disk_id "${_live__disk}")"
+    fi
+
+    #in the live session of the minos ISO, minos-desktop of its release is already here: that system is
+    #copied to the disk, with no network. Anything else (minos-core, another release) is bootstrapped from
+    #the network as in any other live session, with the debootstrap and wget that session carries
+    _live__copy=""
+    if _is_minos_live; then
+        # shellcheck disable=SC1091 # the live system's, read where it runs
+        _live__minos_live="$(. /rofs/etc/os-release; printf "%s" "${VERSION_CODENAME}")"
+        if [ X"${submode}" = X"desktop" ] && [ X"${_live__release}" = X"${_live__minos_live}" ]; then
+            _live__copy="yes"
+        fi
+    fi
 
     printf "\033[1A" #override previous line
     _printfl "Minos Live Installer"
     printf "%b\\n" "${WHITE_BOLD}Release:     ${DEFAULT}${_live__release} / ${_live__rnumber}"
     printf "%b\\n" "${WHITE_BOLD}Arch:        ${DEFAULT}${_live__arch}"
     printf "%b\\n" "${WHITE_BOLD}Target:      ${DEFAULT}${_live__tmp_mnt}"
+    if [ -n "${_live__copy}" ]; then
+        printf "%b\\n" "${WHITE_BOLD}Source:      ${DEFAULT}this live system, copied (no network needed)"
+    fi
     printf "\\n"
     printf "%b\\n" "${WHITE_BOLD}/ partition: ${DEFAULT}${_live__root_partition}"
     if [ -n "${_live__home_partition}" ]; then
         printf "%b\\n" "${WHITE_BOLD}/home  part: ${DEFAULT}${_live__home_partition}"
     fi
-    printf "%b\\n" "${WHITE_BOLD}Grub:        ${DEFAULT}${_live__grub_partition}"
+    if [ X"${_live__firmware}" = X"${_live__session_firmware}" ]; then
+        printf "%b\\n" "${WHITE_BOLD}Firmware:    ${DEFAULT}${_live__firmware}"
+    else
+        printf "%b\\n" "${WHITE_BOLD}Firmware:    ${DEFAULT}${_live__firmware} (${_live__firmware_why}; this session booted by ${_live__session_firmware})"
+    fi
+    printf "%b\\n" "${WHITE_BOLD}Grub:        ${DEFAULT}${_live__disk}"
+    if [ -n "${_live__esp_partition}" ]; then
+        printf "%b\\n" "${WHITE_BOLD}EFI part:    ${DEFAULT}${_live__esp_partition}"
+    fi
     printf "%b\\n" "${WHITE_BOLD}Swap:        ${DEFAULT}${_live__swap:-None}"
+    printf "%b\\n" "${WHITE_BOLD}Keyboard:    ${DEFAULT}${_live__keyboard_layout}${_live__keyboard_variant:+ (${_live__keyboard_variant})}"
+    printf "%b\\n" "${WHITE_BOLD}Time zone:   ${DEFAULT}${_live__timezone}"
     printf "\\n"
     printf "%b\\n" "${WHITE_BOLD}Account:     ${DEFAULT}${_live__username} / $(printf "%s\\n" "${_live__passwd}"|sed 's:.:*:g')"
 
     _printfl
-    _printf_sleep  "Press Ctrl-C to cancel, or wait X seconds to continue ..." "${_live__secs}"
-
-    printf "\033[1A" #override previous line
-    _printfl "Bootstrapping"
-    if ! command -v "debootstrap" >/dev/null 2>&1; then
-        _install_debootstrap
+    #--now: who calls has shown all this and asked already
+    if [ -z "${now}" ]; then
+        _printf_sleep  "Press Ctrl-C to cancel, or wait X seconds to continue ..." "${_live__secs}"
+        printf "\033[1A" #override previous line
+    fi
+    if [ -n "${_live__copy}" ]; then
+        _printfl "Copying the live system"
+    else
+        _printfl "Bootstrapping"
+        if ! command -v "debootstrap" >/dev/null 2>&1; then
+            _install_debootstrap
+        fi
     fi
 
-    umount "${_live__tmp_mnt}/dev"    2>/dev/null || :
-    umount "${_live__tmp_mnt}/proc"   2>/dev/null || :
-    umount "${_live__tmp_mnt}/sys"    2>/dev/null || :
-    umount "${_live__tmp_mnt}/home"   2>/dev/null || :
+    #whatever an earlier attempt left mounted
+    _umount_tree "${_live__tmp_mnt}"
     umount "${_live__root_partition}" 2>/dev/null || :
 
     _cmd_verbose mkdir -p "${_live__tmp_mnt}"
-    _cmd_verbose mount "${_live__root_partition}" "${_live__tmp_mnt}"
+    if [ X"${_live__root_fs}" = X"btrfs" ]; then
+        #the subvolumes, made at the top of the file system when they are not there yet
+        _cmd_verbose mount -o subvolid=5 "${_live__root_partition}" "${_live__tmp_mnt}"
+        for _live__subvolume in @ $([ -n "${_live__home_partition}" ] || printf "%s" "@home"); do
+            [ -d "${_live__tmp_mnt}/${_live__subvolume}" ] || \
+                _cmd_verbose btrfs subvolume create "${_live__tmp_mnt}/${_live__subvolume}"
+        done
+        _cmd_verbose umount "${_live__tmp_mnt}"
+        _cmd_verbose mount -o subvol=@ "${_live__root_partition}" "${_live__tmp_mnt}"
+    else
+        _cmd_verbose mount "${_live__root_partition}" "${_live__tmp_mnt}"
+    fi
 
-    _cmd_verbose debootstrap --arch "${_live__arch}" "${_live__release}" "${_live__tmp_mnt}"
+    if [ -n "${_live__copy}" ]; then
+        _copy_live_system "${_live__tmp_mnt}"
+    else
+        _cmd_verbose debootstrap --arch "${_live__arch}" "${_live__release}" "${_live__tmp_mnt}"
 
-    cat > "${_live__tmp_mnt}/etc/apt/sources.list" << E=O=F
+        cat > "${_live__tmp_mnt}/etc/apt/sources.list" << E=O=F
 deb http://archive.ubuntu.com/ubuntu/  ${_live__release} main restricted universe multiverse
 deb http://security.ubuntu.com/ubuntu/ ${_live__release}-security main restricted universe multiverse
 deb http://archive.ubuntu.com/ubuntu/  ${_live__release}-updates main restricted universe multiverse
 E=O=F
-    _cmd_verbose sed -i "/cdrom:/d" "${_live__tmp_mnt}/etc/apt/sources.list"
+        _cmd_verbose sed -i "/cdrom:/d" "${_live__tmp_mnt}/etc/apt/sources.list"
+    fi
+
+    if [ -n "${_live__home_partition}" ]; then
+        _cmd_verbose mount "${_live__home_partition}" "${_live__tmp_mnt}/home"
+    elif [ X"${_live__root_fs}" = X"btrfs" ]; then
+        _cmd_verbose mount -o subvol=@home "${_live__root_partition}" "${_live__tmp_mnt}/home"
+    fi
+    if [ -n "${_live__esp_partition}" ]; then
+        _cmd_verbose mkdir -p "${_live__tmp_mnt}/boot/efi"
+        _cmd_verbose mount "${_live__esp_partition}" "${_live__tmp_mnt}/boot/efi"
+    fi
 
     _printfl "Generating new /etc/fstab file"
-    printf "%s\\n" "${_live__root_partition} / ext4 errors=remount-ro 0 1" | tee "${_live__tmp_mnt}/etc/fstab"
-    if [ -n "${_live__home_partition}" ]; then
-        printf "%s\\n" "${_live__home_partition} /home ext4 errors=remount-ro 0 1" | tee -a "${_live__tmp_mnt}/etc/fstab"
+    case "${_live__root_fs}" in
+        btrfs) printf "%s\\n" "UUID=${_live__root_uuid} / btrfs subvol=@ 0 1" | tee "${_live__tmp_mnt}/etc/fstab" ;;
+        xfs)   printf "%s\\n" "UUID=${_live__root_uuid} / xfs defaults 0 1" | tee "${_live__tmp_mnt}/etc/fstab" ;;
+        *)     printf "%s\\n" "UUID=${_live__root_uuid} / ext4 errors=remount-ro 0 1" | tee "${_live__tmp_mnt}/etc/fstab" ;;
+    esac
+    if [ -n "${_live__home_uuid}" ]; then
+        case "${_live__home_fs}" in
+            btrfs) printf "%s\\n" "UUID=${_live__home_uuid} /home btrfs defaults 0 2" | tee -a "${_live__tmp_mnt}/etc/fstab" ;;
+            xfs)   printf "%s\\n" "UUID=${_live__home_uuid} /home xfs defaults 0 2" | tee -a "${_live__tmp_mnt}/etc/fstab" ;;
+            *)     printf "%s\\n" "UUID=${_live__home_uuid} /home ext4 errors=remount-ro 0 1" | tee -a "${_live__tmp_mnt}/etc/fstab" ;;
+        esac
+    elif [ X"${_live__root_fs}" = X"btrfs" ]; then
+        printf "%s\\n" "UUID=${_live__root_uuid} /home btrfs subvol=@home 0 2" | tee -a "${_live__tmp_mnt}/etc/fstab"
     fi
-    printf "%s\\n" "${_live__swap} none swap sw 0 0" | tee -a "${_live__tmp_mnt}/etc/fstab"
+    if [ -n "${_live__esp_uuid}" ]; then
+        printf "%s\\n" "UUID=${_live__esp_uuid} /boot/efi vfat umask=0077 0 1" | tee -a "${_live__tmp_mnt}/etc/fstab"
+    fi
+    if [ -n "${_live__swap_uuid}" ]; then
+        printf "%s\\n" "UUID=${_live__swap_uuid} none swap sw 0 0" | tee -a "${_live__tmp_mnt}/etc/fstab"
+    fi
     printf "%s\\n" "proc /proc proc  defaults 0 0"   | tee -a "${_live__tmp_mnt}/etc/fstab"
     printf "%s\\n" "sys  /sys  sysfs defaults 0 0"   | tee -a "${_live__tmp_mnt}/etc/fstab"
 
-    _printfl "Chrooting into  ${_live__tmp_mnt}"
-    _cmd_verbose mount --bind /dev  "${_live__tmp_mnt}/dev"
-    _cmd_verbose mount --bind /proc "${_live__tmp_mnt}/proc"
-    _cmd_verbose mount --bind /sys  "${_live__tmp_mnt}/sys"
-    if [ -n "${_live__home_partition}" ]; then
-        _cmd_verbose mount "${_live__home_partition}" "${_live__tmp_mnt}/home"
-    fi
-
-    cat << EOF | chroot "${_live__tmp_mnt}"
-    set -xe
-
-    apt-get update
-    export DEBIAN_FRONTEND=noninteractive
-
-    printf "%s\\n" "grub-pc grub-pc/install_devices multiselect ${_live__grub_partition}" | debconf-set-selections
-    apt-get install --no-install-recommends -y wget grub-pc grub2-common
-
-    apt-get install --no-install-recommends -y linux-generic-hwe-${_live__rnumber} || \
-        apt-get install --no-install-recommends -y linux-generic
-
-    adduser --quiet --disabled-password --shell /bin/bash --home "/home/${_live__username}" --gecos "" "${_live__username}"
-    printf "%s\\n" "${_live__username}:${_live__passwd}" | chpasswd
-
-    for group in adm cdrom sudo dip plugdev netdev admin; do
-        if ! grep -q "\${group}" /etc/group; then
-            addgroup "\${group}"
-        fi
-        usermod -aG "\${group}" "${_live__username}"
+    _printfl "Chrooting into ${_live__tmp_mnt}"
+    #this machine's own, in the target (efivarfs below too): what the steps inside configure must not change
+    #them (_guard_tmpfiles)
+    _live__host_dirs="/dev /dev/pts /proc /sys" #apt writes its log through /dev/pts
+    #one by one, not --rbind: unmounting a recursive copy of /sys takes the live session's own submounts with it
+    for _live__dir in ${_live__host_dirs}; do
+        _cmd_verbose mount --bind "${_live__dir}" "${_live__tmp_mnt}${_live__dir}"
     done
-
-    wget -q -O- minos.io/s | sh /dev/stdin ${submode}
-    apt-get autoremove
-
-    if [ ! -e /usr/bin/python ]; then
-        if   [ -e /usr/bin/python3 ]; then
-            ln -s /usr/bin/python3 /usr/bin/python
-        elif [ -e /usr/bin/python2 ]; then
-            ln -s /usr/bin/python2 /usr/bin/python
-        fi
+    if [ X"${_live__firmware}" = X"UEFI" ] && [ X"${_live__session_firmware}" = X"UEFI" ]; then
+        #grub-install writes the boot entry into the NVRAM through efivarfs
+        _cmd_verbose mount -t efivarfs efivarfs "${_live__tmp_mnt}/sys/firmware/efi/efivars"
     fi
 
-    if [ X"${RELEASE}" = X"focal" ]; then
-        sed -i 's,wicd-curses:terminal,cmst -d,g' /etc/minos/config
-    fi
+    #the step inside runs this same script, not whatever minos.io/s holds by then; a copy has minos already
+    [ -n "${_live__copy}" ] || _copy_running_setup "${_live__tmp_mnt}/tmp/minos-setup"
+    _live_script > "${_live__tmp_mnt}/tmp/minos-live-install"
+    (umask 077; printf "%s:%s\\n" "${_live__username}" "${_live__passwd}" > "${_live__tmp_mnt}/tmp/minos-live-passwd")
 
-    sed -i -e "/^127.0.0.1/ s:^127.*:127.0.0.1\tminos minos.lan localhost:" /etc/hosts
-    echo 'minos' | tee /etc/hostname
-    hostnamectl set-hostname 'minos' || :
-
-    sed -i -e '/^XKBMODEL/  s:=.*:="pc105":' /etc/default/keyboard
-    sed -i -e '/^XKBLAYOUT/ s:=.*:="latam":' /etc/default/keyboard
-
-    sed -i -e '/^CHARMAP/   s:=.*:="UTF-8":' /etc/default/console-setup
-    sed -i -e '/^CODESET/   s:=.*:="guess":' /etc/default/console-setup
-
-    locale-gen en_US.UTF-8
-    update-locale LANG=en_US.UTF-8
-
-    #https://stackoverflow.com/a/42344810/890858
-    ln -fs /usr/share/zoneinfo/America/Mexico_City /etc/localtime
-    dpkg-reconfigure --frontend noninteractive tzdata
-
-    grub-install "${_live__grub_partition}"
-    grub-install --recheck "${_live__grub_partition}"
-    update-grub
-
-    if [ X"${RELEASE}" = X"focal" ]; then
-        update-initramfs -u -k "\$(dpkg --list  | \
-            awk '/linux-image/{print \$2;exit}' | sed 's:linux-image-::g')"
-        update-grub2
-    fi
-EOF
-
-    if _last_cmd_ok; then
-        set +x
+    _guard_tmpfiles "${_live__tmp_mnt}" "${_live__host_dirs}"
+    #an explicit command: without one chroot opens an interactive shell
+    if chroot "${_live__tmp_mnt}" /bin/sh /tmp/minos-live-install < /dev/null; then
+        _unguard_tmpfiles "${_live__tmp_mnt}" || _die "the installed system would keep the wrapper, which skips ${_live__host_dirs}"
+        _cmd_verbose rm -rf "${_live__tmp_mnt}/tmp/minos-setup" "${_live__tmp_mnt}/tmp/minos-live-install" \
+            "${_live__tmp_mnt}/tmp/minos-live-step" "${_live__tmp_mnt}/tmp/minos-bootloader"
+        _printfl "Unmounting ${_live__tmp_mnt}"
+        _umount_tree "${_live__tmp_mnt}"
         _printfl "DONE: Reboot the system to get started, have fun!, n.n/"
+    else
+        _live__step="$(cat "${_live__tmp_mnt}/tmp/minos-live-step" 2>/dev/null)"
+        #minos-live-passwd holds the password, when the step that reads it did not get to remove it
+        rm -f "${_live__tmp_mnt}/tmp/minos-live-install" "${_live__tmp_mnt}/tmp/minos-live-step" \
+            "${_live__tmp_mnt}/tmp/minos-live-passwd"
+        #the exit trap gives back the real systemd-tmpfiles and unmounts the target
+        _die "FAILED while ${_live__step:-entering the chroot}: the command that failed is the last one above," \
+            "the system is not ready to boot"
     fi
 
 #TODO
@@ -781,6 +1149,266 @@ EOF
 
 #
 }
+
+_live_script() { #the steps live mode runs inside its target, from the _live__ variables: on a system it
+    #bootstrapped, the kernel, minos and grub from the network; on a copy of the minos ISO's live system,
+    #which has the kernel and minos, casper out and grub from the medium's packages, with no network
+    cat << EOF
+#run by minos.io/s live inside ${_live__tmp_mnt}; each step leaves its name in /tmp/minos-live-step
+set -e
+_step() { printf "%s\\n" "\${*}" > /tmp/minos-live-step; printf "\\n[+] %s\\n" "\${*}"; }
+export DEBIAN_FRONTEND=noninteractive
+set -x
+
+EOF
+    if [ -n "${_live__copy}" ]; then
+        cat << EOF
+_step "removing casper, the live session's boot, and what came only for it"
+apt-get purge -y --autoremove casper
+
+EOF
+    else
+        cat << EOF
+_step "updating ${_live__release} from its -updates and -security"
+apt-get update
+apt-get dist-upgrade -y
+
+_step "installing grub for ${_live__firmware}"
+if [ X"${_live__firmware}" = X"BIOS" ]; then
+    printf "%s\\n" "grub-pc grub-pc/install_devices multiselect ${_live__disk_id}" | debconf-set-selections
+fi
+apt-get install --no-install-recommends -y wget ${_live__grub_packages}
+
+EOF
+        if [ -n "${_live__fs_tools}" ]; then
+            cat << EOF
+_step "installing the tools of the file systems minos is on, before the kernel: they go into its initramfs"
+apt-get install --no-install-recommends -y${_live__fs_tools}
+
+EOF
+        fi
+        cat << EOF
+_step "installing the kernel"
+#without recommends the kernel comes with nothing to build its initramfs
+apt-get install --no-install-recommends -y initramfs-tools
+apt-get install --no-install-recommends -y linux-generic-hwe-${_live__rnumber} || \\
+    apt-get install --no-install-recommends -y linux-generic
+
+EOF
+    fi
+    cat << EOF
+_step "creating the user ${_live__username}"
+adduser --quiet --disabled-password --shell /bin/bash --home "/home/${_live__username}" --gecos "" "${_live__username}"
+#the password from a file: written into this script, its quotes, \$ and backslashes would be the shell's
+chpasswd < /tmp/minos-live-passwd
+rm -f /tmp/minos-live-passwd
+for group in adm cdrom sudo dip plugdev netdev admin; do
+    if ! grep -q "\${group}" /etc/group; then
+        addgroup "\${group}"
+    fi
+    usermod -aG "\${group}" "${_live__username}"
+done
+
+EOF
+    if [ -n "${_live__copy}" ]; then
+        cat << EOF
+_step "configuring minos' settings again, now that ${_live__username} exists"
+#bootstrapped, minos goes in after the user, and its settings packages write into that user's home and
+#name it as slim's default user; in the copy the user comes after them
+dpkg-reconfigure \$(dpkg-query -W -f='\${db:Status-Abbrev} \${Package}\\n' '*minos*-settings' | awk '\$1 == "ii" {print \$2}')
+
+EOF
+    else
+        cat << EOF
+_step "installing minos-${submode}"
+sh /tmp/minos-setup ${submode}
+
+_step "upgrading what minos-${submode} brought, removing what nothing needs"
+apt-get dist-upgrade -y
+apt-get autoremove -y
+
+_step "installing what keeps the system up to date: security updates, the next LTS"
+#unattended-upgrades applies the security updates every day; ubuntu-release-upgrader-core brings
+#do-release-upgrade. The minos ISO carries both, for a copy
+apt-get install --no-install-recommends -y unattended-upgrades ubuntu-release-upgrader-core
+
+EOF
+    fi
+    _live_slim_script
+    cat << EOF
+_step "giving the wired network cards an address"
+#debootstrap leaves no network configuration. Ubuntu's own manager is already here (netplan, rendered by
+#systemd-networkd, priority important on every release): every wired card takes DHCP, under the names the
+#kernel gives (en*) or the old ones (eth*, net.ifnames=0). minos-desktop brings connman, which manages the
+#network itself and must not share the cards; a copy of the minos ISO has it
+if ! dpkg-query -W -f='\${Status}\\n' connman 2>/dev/null | grep -qx 'install ok installed'; then
+    printf '%s\\n' '# minos.io/s live: every wired card takes an address by DHCP' 'network:' '  version: 2' \\
+        '  renderer: networkd' '  ethernets:' '    wired:' '      match:' '        name: "en*"' '      dhcp4: true' \\
+        '    wired-eth:' '      match:' '        name: "eth*"' '      dhcp4: true' > /etc/netplan/01-minos-wired.yaml
+    chmod 600 /etc/netplan/01-minos-wired.yaml
+    #enabled as Ubuntu's installer leaves it, so network-online.target waits for the addresses (its wait-online)
+    systemctl enable systemd-networkd.service
+fi
+
+_step "setting the host name, keyboard, locale and time zone"
+if [ ! -e /usr/bin/python ]; then
+    if   [ -e /usr/bin/python3 ]; then
+        ln -s /usr/bin/python3 /usr/bin/python
+    elif [ -e /usr/bin/python2 ]; then
+        ln -s /usr/bin/python2 /usr/bin/python
+    fi
+fi
+
+sed -i -e "/^127.0.0.1/ s:^127.*:127.0.0.1\tminos minos.lan localhost:" /etc/hosts
+echo 'minos' | tee /etc/hostname
+hostnamectl set-hostname 'minos' || :
+
+sed -i -e '/^XKBMODEL/  s:=.*:="pc105":' /etc/default/keyboard
+sed -i -e '/^XKBLAYOUT/ s:=.*:="${_live__keyboard_layout}":' /etc/default/keyboard
+sed -i -e '/^XKBVARIANT/ s:=.*:="${_live__keyboard_variant}":' /etc/default/keyboard
+
+sed -i -e '/^CHARMAP/   s:=.*:="UTF-8":' /etc/default/console-setup
+sed -i -e '/^CODESET/   s:=.*:="guess":' /etc/default/console-setup
+
+locale-gen en_US.UTF-8
+update-locale LANG=en_US.UTF-8
+
+#https://stackoverflow.com/a/42344810/890858
+ln -fs /usr/share/zoneinfo/${_live__timezone} /etc/localtime
+dpkg-reconfigure --frontend noninteractive tzdata
+
+EOF
+    if [ -n "${_live__copy}" ]; then
+        cat << EOF
+_step "installing the boot loader for ${_live__firmware}, from the medium's packages"
+if [ X"${_live__firmware}" = X"BIOS" ]; then
+    printf "%s\\n" "grub-pc grub-pc/install_devices multiselect ${_live__disk_id}" | debconf-set-selections
+else
+    #until minos-untrim brings the graphics drivers, the kernel draws through simpledrm on the display mode
+    #GRUB hands it, and on UEFI a mode GRUB sets may be one the display does not show as drawn (black under
+    #OVMF): GRUB stays on the firmware's console and leaves its mode alone, as the minos ISO's menu does
+    mkdir -p /etc/default/grub.d
+    printf "%s\\n" "#minos.io/s live, copied from the minos ISO on UEFI: the firmware's display mode, untouched" \\
+        "GRUB_TERMINAL=console" > /etc/default/grub.d/minos-console.cfg
+fi
+cd /tmp/minos-bootloader
+apt-get install --no-install-recommends -y \$(sed 's|^|./|' ${_live__bootloader_list})
+cd /
+#the live system has a kernel and no initramfs: it booted from casper's, on the medium
+update-initramfs -c -k all
+EOF
+    else
+        cat << EOF
+_step "installing the boot loader for ${_live__firmware}"
+if [ X"${_live__since_focal}" = X"yes" ]; then
+    update-initramfs -u -k "\$(dpkg --list  | \\
+        awk '/linux-image/{print \$2;exit}' | sed 's:linux-image-::g')"
+fi
+EOF
+    fi
+    cat << EOF
+if [ X"${_live__firmware}" = X"BIOS" ]; then
+    #the target named: without one grub-install installs for the firmware /sys shows, and in a session
+    #booted by UEFI that is EFI
+    grub-install --target=i386-pc "${_live__disk}"
+else
+    #the signed grub looks for its config in EFI/ubuntu; Ubuntu's grub-install also copies itself to
+    #EFI/BOOT/BOOTX64.EFI, for firmware that forgets its NVRAM, and keeps both on its upgrades. A session
+    #booted by BIOS has no NVRAM to write the entry into: the disk boots from EFI/BOOT until it gets one
+    grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ubuntu${_live__no_nvram}
+fi
+update-grub
+EOF
+    #the ISO leaves out the kernel modules and firmware that are neither network nor booting; the copy
+    #gets them back from the network, at its first boot that has one (the ISO's minos-untrim unit)
+    if [ -n "${_live__copy}" ] && [ -f /rofs/var/lib/minos/live-trimmed ]; then
+        cat << EOF
+
+_step "leaving the kernel modules and firmware the ISO left out to minos-untrim, at the first boot with a network"
+systemctl enable minos-untrim.service
+EOF
+    fi
+}
+
+_live_slim_script() { #the step live mode runs inside its target once minos is there, bootstrapped or copied
+    #from the minos ISO alike: what Ubuntu's base brings and minos does not use goes. The lists are the ones
+    #minos' boxes purge (packers' autoinstall/user-data), and then four services of priority important that
+    #debootstrap brings and no minos package asks for: rsyslog (the journal keeps the logs), cron (minos'
+    #jobs run from systemd timers), networkd-dispatcher (networkd's hook runner) and dbus-user-session
+    #(systemd's per-user bus). Each line it prints says what a list purged
+    printf "%s\\n" "_step \"removing what minos-${submode} does not use\"" "minos_meta=\"minos-${submode}\""
+    cat << 'EOF'
+set +x #each list says on a line of its own what it purges
+_installed() { #dpkg patterns => the installed packages among them
+    dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' "${@}" 2>/dev/null | awk '$1 ~ /^.i/ {print $2}'
+}
+#what stays whatever a list says: minos and what it depends on, Ubuntu's required packages, and what boots
+#the system, reaches it, lets it be administered and keeps it up to date
+keep="$( { apt-cache depends --recurse --installed --no-recommends --no-suggests --no-conflicts --no-breaks \
+        --no-replaces --no-enhances "${minos_meta}" | grep -v '^[ <]'
+    dpkg-query -W -f='${db:Status-Abbrev} ${Priority} ${Package}\n' | awk '$1 ~ /^.i/ && $2 == "required" {print $3}'
+    _installed dbus sudo openssh-server netplan.io systemd-resolved systemd-timesyncd 'grub*' 'shim*' 'linux-image-*' \
+        'linux-modules-*' initramfs-tools kbd console-setup keyboard-configuration locales tzdata ca-certificates \
+        dracut dracut-core unattended-upgrades ubuntu-release-upgrader-core
+} | sort -u)"
+#the four services go whatever the list above says: dbus-user-session is in it on a desktop only as one
+#provider of the session bus dconf-service asks for, and the other one, dbus-x11, is the bus minos' X
+#session runs. One whose purge would take something that stays is kept, below, and said so
+keep="$(printf "%s\n" "${keep}" | grep -vx -e rsyslog -e cron -e networkd-dispatcher -e dbus-user-session)"
+#Ubuntu's metapackages may go with what is purged, and an autoremove would then take what they pulled: what
+#they pulled, what stays and every package of priority required, important or standard are marked manual
+ubuntu="$(_installed ubuntu-minimal ubuntu-server-minimal ubuntu-standard ubuntu-server)" || :
+pulled=""
+# shellcheck disable=SC2086 # a list of packages
+[ -z "${ubuntu}" ] || pulled="$(dpkg-query -W -f='${Depends}, ${Pre-Depends}, ${Recommends}\n' ${ubuntu} |
+    tr ',' '\n' | sed 's/[|(].*//; s/:.*//; s/ //g' | grep .)" || :
+# shellcheck disable=SC2046,SC2086 # lists of packages
+apt-mark manual $( { [ -z "${pulled}" ] || _installed ${pulled}; printf "%s\n" "${keep}"
+    dpkg-query -W -f='${db:Status-Abbrev} ${Priority} ${Package}\n' |
+        awk '$1 ~ /^.i/ && $2 ~ /^(required|important|standard)$/ {print $3}'; } | sort -u) > /dev/null
+_remove() { #what package... => the installed PACKAGES (dpkg patterns) that do not stay purged, with what only
+    #they pulled; one whose purge would take something that stays is kept
+    what="${1}"; shift
+    pkgs="$(_installed "${@}" | grep -vxF "${keep}")" || :
+    for pkg in ${pkgs}; do
+        if apt-get -s purge "${pkg}" | awk '/^Purg / {print $2}' | grep -qxF "${keep}"; then
+            printf "slim: %s: %s kept, minos needs it or what goes with it\n" "${what}" "${pkg}"
+            # shellcheck disable=SC2086 # a list of packages
+            pkgs="$(printf "%s\n" ${pkgs} | grep -vxF "${pkg}")" || :
+        fi
+    done
+    if [ -n "${pkgs}" ]; then
+        # shellcheck disable=SC2086 # a list of packages
+        printf "slim: %s purges %s\n" "${what}" "$(apt-get -s purge ${pkgs} | awk '/^Purg / {printf "%s ", $2}')"
+        # shellcheck disable=SC2086
+        apt-get -y -q purge ${pkgs} > /dev/null
+        apt-get -y -q autoremove --purge > /dev/null
+    else
+        printf "slim: %s: none installed\n" "${what}"
+    fi
+}
+_remove "reports, advertising and Ubuntu Pro" apport apport-symptoms apport-core-dump-handler python3-apport \
+    python3-problem-report whoopsie popularity-contest ubuntu-report landscape-common landscape-client \
+    motd-news-config ubuntu-pro-client ubuntu-pro-client-l10n ubuntu-advantage-tools update-notifier-common \
+    pollinate sosreport
+_remove "cloud tools" cloud-guest-utils cloud-initramfs-copymods cloud-initramfs-dyn-netconf \
+    ubuntu-cloudimage-keyring grub-legacy-ec2 lxd-installer lxd-agent-loader open-vm-tools open-iscsi
+_remove "tools minos replaces or does not use" byobu screen eatmydata ed pastebinit run-one ltrace lshw \
+    info install-info usbutils psmisc ufw uidmap hdparm laptop-detect irqbalance os-prober needrestart \
+    software-properties-common python3-software-properties packagekit packagekit-tools iso-codes \
+    python3-babel python-babel-localedata xdg-user-dirs shared-mime-info publicsuffix mlocate plocate \
+    nano w3m ppp powermgmt-base ethtool vlan ifenslave fakeroot libc6-dev linux-libc-dev eject \
+    geoip-database krb5-locales 'language-pack-*' fonts-ubuntu-console accountsservice \
+    vim-tiny gawk xauth dmidecode bind9-host bind9-dnsutils dnsutils ftp tnftp inetutils-telnet telnet \
+    crash kdump-tools makedumpfile bpftool manpages-dev manpages binutils binutils-common \
+    'binutils-x86-64-linux-gnu' libbinutils libgprofng0 'libctf*' 'libsframe*' hwctl python3-setuptools
+_remove "servers minos never wanted" xinetd sasl2-bin 'sendmail*' sensible-mda rmail bsd-mailx 'apache2*' \
+    bind9 rpcbind postfix cifs-utils 'samba*'
+_remove "services no minos package asks for" rsyslog cron networkd-dispatcher dbus-user-session
+set -x
+
+EOF
+} #_live_slim_script: the minos ISO's build reads this function to slim its live system the same way
 
 _live_params() {
     [ -z "${4}" ] && return 1 || shift
@@ -800,6 +1428,12 @@ _live_params() {
     passwd="${3}"
     home_partition="${4}"
 
+    #- for the password: it comes on the standard input, a line, and no command line shows it
+    if [ X"${passwd}" = X"-" ]; then
+        IFS= read -r passwd || :
+        [ -n "${passwd}" ] || _die "the password was to come on the standard input, and none did"
+    fi
+
     if [ ! -e "${root_partition}" ]; then
         _die "${root_partition} doesn't exists → /"
     fi
@@ -809,12 +1443,19 @@ _live_params() {
             _die "${home_partition} doesn't exists → /home"
         fi
     fi
+
+    if [ -n "${esp_partition}" ]; then
+        if [ ! -e "${esp_partition}" ]; then
+            _die "${esp_partition} doesn't exists → /boot/efi"
+        fi
+    fi
 }
 
 ################################################################################
 # Parse parameters #############################################################
 ################################################################################
 
+now=""; keyboard=""; timezone=""; firmware=""
 if [ -z "${1}" ]; then
     mode="core"; cx="\b>"
 else
@@ -829,34 +1470,40 @@ else
             *|core) mode="core";    cx="\b>";;
     esac
 
-    for arg in "${@}"; do #parse options
-        case "${arg}" in
-            --release)
-                if [ "${#}" -gt "1" ]; then
-                    case "${2}" in
-                        -*) _die "Option '${arg}' requires a parameter" ;;
-                    esac; shift
-
-                    case "${1}" in
-                        16.04|xenial) RELEASE="xenial" ;;
-                        18.04|bionic) RELEASE="bionic" ;;
-                        20.04|focal)  RELEASE="focal" ;;
-                        *) _header; _die "Invalid release: ${1}"
-                    esac; shift
-                else
-                    _die "Option '${arg}' requires a parameter"
-                fi
+    while [ "${#}" -gt "0" ]; do #parse options, each one with its parameter
+        case "${1}" in
+            --release|--esp|--keyboard|--timezone|--firmware)
+                case "${2}" in
+                    ""|-*) _die "Option '${1}' requires a parameter" ;;
+                esac
+                case "${1}" in
+                    --keyboard) keyboard="${2}" ;;
+                    --timezone) timezone="${2}" ;;
+                    --firmware)
+                        case "${2}" in
+                            uefi|bios) firmware="${2}" ;;
+                            *) _header; _die "Invalid firmware: ${2}, it is uefi or bios" ;;
+                        esac ;;
+                    --release)
+                        RELEASE="$(_get_release_codename "${2}")"
+                        if [ -z "${RELEASE}" ]; then
+                            _header; _die "Invalid release: ${2}"
+                        fi ;;
+                    --esp) esp_partition="${2}" ;;
+                esac
+                shift 2
                 ;;
-            -*) _header; _die "Invalid option: ${arg}" ;;
-            *)  if [ -n "${1}" ]; then
-                    args="${args} ${arg}";
-                    shift
-                fi ;;
+            --now) now="yes"; shift ;;
+            #alone, the place of a password that comes on the standard input
+            -)  args="${args} '-'"; shift ;;
+            -*) _header; _die "Invalid option: ${1}" ;;
+            #each one quoted, to come back whole: a password may hold spaces, quotes or a *
+            *)  args="${args} '$(printf "%s" "${1}" | sed "s/'/'\\\\''/g")'"; shift ;;
         esac
     done
 fi
 
-set -- ${args}
+eval "set -- ${args}"
 ################################################################################
 # Main #########################################################################
 ################################################################################
@@ -869,9 +1516,16 @@ if _supported; then
     _is_root || _die "You aren't root!, re-run with admin privileges"
 
     #give the user chance to cancel before starting
-    _printf_sleep "Loading components ..." "3" || exit 1
+    if [ -z "${now}" ]; then
+        _printf_sleep "Loading components ..." "3" || exit 1
+    fi
 
     trap _cleanup INT QUIT #trap ctrl-c
+    #a failed command exits through _die, before the mode puts the sources it set aside back: they go back here,
+    #and live mode leaves its target with the real systemd-tmpfiles and nothing mounted, also when it stops halfway
+    trap '_exit__status="${?}"; _recover_original_reps
+          if [ -n "${_live__tmp_mnt}" ]; then _unguard_tmpfiles "${_live__tmp_mnt}"; _umount_tree "${_live__tmp_mnt}"; fi
+          exit "${_exit__status}"' EXIT
     #the _hook function execute $HOME/.minos/hooks/[LETTER][NUMBER] scripts
     #eg: $HOME/.minos/hooks/A01installextral, $HOME/.minos/hooks/Z01finish
     _hooks A

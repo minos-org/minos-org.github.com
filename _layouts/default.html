@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en" data-theme="mesas">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ page.title | escape }}</title>
+<meta name="description" content="{{ page.description | escape }}">
+<link rel="stylesheet" href="core/base.css">
+<!-- The core is this page: semantic markup with no look of its own. A theme dresses it (themes/<slug>/theme.css,
+     effects.js, fragments.js); themes/manifest.js lists them. The bootstrap below picks ?theme=, else the visitor's
+     saved choice, else the manifest's default, and writes that theme's stylesheets before the first paint. -->
+<script src="themes/manifest.js"></script>
+<script>(function () {
+  var d = document.documentElement, M = window.minosThemes, q = null, s = null, t = null, i;
+  function find(slug) { for (var j = 0; j < M.list.length; j++) if (M.list[j].slug === slug) return M.list[j]; return null; }
+  try { q = new URLSearchParams(location.search).get('theme'); } catch (e) { q = null; }
+  try { s = localStorage.getItem('minos.theme'); } catch (e) { s = null; }
+  t = find(q) || find(s) || find(M.default) || M.list[0];
+  if (find(q)) { try { localStorage.setItem('minos.theme', q); } catch (e) { /* storage blocked: this visit only */ } }
+  d.className += ' js fx-wait';
+  d.setAttribute('data-theme', t.slug);
+  window.minosTheme = t.slug;
+  var a = function (v) { return String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;'); };
+  document.write((t.fonts ? '<link id="theme-fonts" rel="stylesheet" href="' + a(t.fonts) + '">' : '') +
+    '<link id="theme-css" rel="stylesheet" href="' + a(t.css) + '">');
+  // the theme's effects reveal the page once mounted; this is the floor if they never do
+  setTimeout(function () { d.classList.remove('fx-wait'); }, 2500);
+})();</script>
+<noscript>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inconsolata:wght@400;700&amp;display=swap">
+<link rel="stylesheet" href="themes/mesas/theme.css">
+</noscript>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site" id="site">
+  <h1 class="brand">minos</h1>
+  <nav class="toc" id="toc" aria-label="Contents">
+    <ul>
+      <li><a href="#about">about</a></li>
+      <li><a href="#install">install</a></li>
+      <li><a href="#core">core</a></li>
+      <li><a href="#desktop">desktop</a></li>
+      <li><a href="#images">images</a></li>
+      <li><a href="#principles">principles</a></li>
+      <li><a href="#config">config</a></li>
+      <li><a href="#keys">keys</a></li>
+      <li><a href="#dev">dev</a></li>
+      <li><a href="#history">history</a></li>
+      <li><a href="#source">source</a></li>
+    </ul>
+  </nav>
+  <div class="switch" id="switch" hidden>
+    <button class="switch-btn" type="button" aria-expanded="false" aria-controls="switch-panel">theme <span class="switch-cur"></span></button>
+    <div class="switch-panel" id="switch-panel" role="group" aria-label="Theme" hidden></div>
+  </div>
+</header>
+
+<main id="main" tabindex="-1">
+
+{{ content }}</main>
+
+<footer class="foot" id="foot">
+  <p>minos.io · Minimalism, stability, coherence, control, beauty.</p>
+</footer>
+
+<script src="core/fx.js"></script>
+<script>MinosFX.write(window.minosTheme);</script>
+<script src="core/core.js"></script>
+</body>
+</html>

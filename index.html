@@ -1,23 +1,187 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
-    <meta name="keywords" content="">
-    <link rel="shortcut icon" href="http://minos.io/favicon.ico">
-    <link href='http://fonts.googleapis.com/css?family=Exo+2:200|PT+Sans|Strait|Vollkorn|' rel='stylesheet' type='text/css'>
-    <link rel="alternate" type="application/atom+xml" href="/atom.xml">
-    <link rel="stylesheet" type="text/css" href="/assets/css/default.css">
+---
+# The core's sections, wrapped by _layouts/default.html (head, theme bootstrap, header, footer, scripts).
+layout: default
+title: "minos — a Linux based OS on top of Ubuntu LTS"
+description: "A Linux based OS with focus in simplicity, elegancy and stability, primarily targeted at advanced users and developers, delivered as a thin layer of packages on top of Ubuntu LTS."
+---
+  <section class="sec" id="about" aria-labelledby="h-about" data-name="about" data-keys="what is distribution linux os ubuntu rolling developers flavours">
+    <h2 id="h-about">What is minos?</h2>
+    <p class="logo"><img src="assets/minos.svg" width="555" height="213" alt="minos"></p>
+    <p class="tag">Minimalism, stability, coherence, control, beauty.</p>
+    <p class="lead">A Linux based OS with focus in simplicity, elegancy and stability, primarily targeted at advanced users and developers, delivered as a thin layer of packages on top of Ubuntu LTS. Install Ubuntu, add one archive, install one package. Rolling updates over each LTS; minos has no named releases of its own.</p>
+    <dl class="flavours">
+      <dt>minos-core</dt><dd>no X, for servers and terminals</dd>
+      <dt>minos-desktop</dt><dd>minos-core plus an i3 tiling desktop</dd>
+    </dl>
+    <p class="runs">Runs on Ubuntu LTS <b>22.04 · 24.04 · 26.04</b>.</p>
+    <p class="next"><a href="#install">How do I install it?</a></p>
+  </section>
 
-    <title>minos.io</title>
-  </head>
-
-  <body>
-
-    <div id="content">
-      <p></p><br><br>
-      <img src="/assets/img/minos.png" alt="minos soon...">
-      <h2 style="text-align:center;">Minimalism, stability, coherence, control, beauty.</h2>
+  <section class="sec" id="install" aria-labelledby="h-install" data-name="install" data-keys="setup get download apt ppa archive usb disk wget one line flavour iso live">
+    <h2 id="h-install">How do I install it?</h2>
+    <div class="flav" role="group" aria-label="Flavour" hidden>
+      <span class="flav-label">flavour</span>
+      <button type="button" data-f="core" aria-pressed="false">core</button>
+      <button type="button" data-f="desktop" aria-pressed="true">desktop</button>
+      <span class="flav-note" id="flavnote">i3 desktop, includes minos-core</span>
     </div>
+    <p>On Ubuntu LTS, add one archive and install one package:</p>
+    <div class="cmd"><code>$ sudo add-apt-repository ppa:minos-archive/main</code><code>$ sudo apt-get update</code><code data-f="core">$ sudo apt-get install minos-core      <span class="c"># servers, terminals</span></code><code data-f="desktop">$ sudo apt-get install minos-desktop   <span class="c"># i3 desktop, includes minos-core</span></code></div>
+    <p>The same in one line, <code>desktop</code> or <code>core</code>:</p>
+    <div class="cmd"><code>$ sh &lt;(wget -qO- minos.io/s) <span class="one" id="one">desktop</span></code></div>
+    <p>Onto a blank disk, from any live USB:</p>
+    <div class="cmd"><code>$ wget -qO s minos.io/s &amp;&amp; sudo sh s live desktop /dev/sdX username passwd</code></div>
+    <!-- minos-org/packers keeps one release, replaced by every build, so latest/download/NAME always answers; each
+         .sha256 changes with its ISO, which is why no sum, size or date is written here -->
+    <p>Or from the minos ISO, a live minos-desktop where <kbd>Win+i</kbd> installs minos:</p>
+    <dl class="links">
+      <dt>26.04</dt><dd><a href="https://github.com/minos-org/packers/releases/latest/download/minos-26.04-amd64.iso">minos-26.04-amd64.iso</a> · <a href="https://github.com/minos-org/packers/releases/latest/download/minos-26.04-amd64.sha256">sha256</a></dd>
+      <dt>24.04</dt><dd><a href="https://github.com/minos-org/packers/releases/latest/download/minos-24.04-amd64.iso">minos-24.04-amd64.iso</a> · <a href="https://github.com/minos-org/packers/releases/latest/download/minos-24.04-amd64.sha256">sha256</a></dd>
+      <dt>22.04</dt><dd><a href="https://github.com/minos-org/packers/releases/latest/download/minos-22.04-amd64.iso">minos-22.04-amd64.iso</a> · <a href="https://github.com/minos-org/packers/releases/latest/download/minos-22.04-amd64.sha256">sha256</a></dd>
+    </dl>
+    <p class="runs">On Ubuntu LTS 22.04 · 24.04 · 26.04.</p>
+  </section>
 
-  </body>
-</html>
+  <section class="sec" id="core" aria-labelledby="h-core" data-name="core" data-keys="minos-core server terminal shell bash ssh tmux vim cmdfound commands">
+    <h2 id="h-core">What is in minos-core?</h2>
+    <p class="lead">No X. For servers and terminals.</p>
+    <dl class="items">
+      <dt data-kind="dir">shell</dt><dd>bash in vi mode, with shundle plugins: aliazator, autocd, colorize, eternalize; <code>wcd</code> to jump between directories</dd>
+      <dt data-kind="dir">tmux + mosh</dt><dd>prefix <kbd>Ctrl-a</kbd>, tundle plugins, tmux launched on every ssh login</dd>
+      <dt data-kind="dir">vim</dt><dd>vundle and about 50 plugins, each loaded when it is needed</dd>
+      <dt data-kind="run">cmdfound</dt><dd>from <code>command not found</code> to executed in seconds: it asks channels (github releases, aqua, nix, docker…) who can provide the missing command, picks the quickest and runs it</dd>
+      <dt data-kind="dir">commands</dt><dd>the author's small ones, kept current through shundle: <code>trash</code>, an <code>rm</code> that keeps what it deletes; <code>compress</code> / <code>extract</code>; <code>uimg</code></dd>
+      <dt data-kind="cfg">apt</dt><dd>recommends and suggests off</dd>
+      <dt data-kind="cfg">sudo</dt><dd>insults on, where sudo is the classic one; sudo-rs, the default from 26.04, has none</dd>
+    </dl>
+  </section>
+
+  <section class="sec" id="desktop" aria-labelledby="h-desktop" data-name="desktop" data-keys="minos-desktop i3 tiling window manager gui colours colors programs">
+    <h2 id="h-desktop">What does minos-desktop add?</h2>
+    <p class="lead">Everything in minos-core, plus an i3 tiling desktop.</p>
+    <dl class="items">
+      <dt data-kind="dir">minos-core</dt><dd>all of it</dd>
+      <dt data-kind="run">i3</dt><dd>patched; workspaces 1 www · 2 fm · 3 mail · 4 im · 5 term</dd>
+      <dt data-kind="run">slim</dt><dd>the login</dd>
+      <dt data-kind="run">dmenu</dt><dd>the launchers</dd>
+      <dt data-kind="run">urxvt</dt><dd>the terminal</dd>
+      <!-- m-browser -> minos-meta -> minos-config browser = x-www-browser: whatever browser the user installs -->
+      <dt data-kind="cfg">browser</dt><dd>none; AltGr+w opens the one you install</dd>
+      <dt data-kind="run">pcmanfm</dt><dd>the file manager, on 2 fm</dd>
+      <!-- minos-desktop installs neither (minos-meta-20.04-deb, since 2022); minos-desktop-settings configures both as optional
+           debconf modules (mutt's imap account template, irssi's dark_winter theme) and i3 assigns their windows to 3 mail and 4 im -->
+      <dt data-kind="cfg">mutt, irssi</dt><dd>configured by minos for 3 mail and 4 im; installing them is optional (<code>sudo apt-get install mutt irssi</code>)</dd>
+      <dt data-kind="run">feh / sxiv</dt><dd>images</dd>
+      <dt data-kind="run">zathura</dt><dd>documents</dd>
+      <dt data-kind="run">mplayer</dt><dd>video</dd>
+      <dt data-kind="run">connman</dt><dd>network</dd>
+      <dt data-kind="run">redshift</dt><dd>screen colour by the hour</dd>
+      <dt data-kind="run">compton</dt><dd>compositing</dd>
+      <dt data-kind="dir">plymouth</dt><dd>boot themes</dd>
+      <dt data-kind="cfg">colours</dt><dd>a black bar with white status text; borders <span class="sw" style="background:#999999"></span>#999999 focused, <span class="sw" style="background:#333333"></span>#333333 unfocused, <span class="sw" style="background:#8C4665"></span>#8C4665 urgent</dd>
+    </dl>
+  </section>
+
+  <section class="sec" id="images" aria-labelledby="h-images" data-name="images" data-keys="vagrant virtualbox aws cloud docker container box ova vm image">
+    <h2 id="h-images">Where else does it run?</h2>
+    <!-- the boxes are assets of minos-org/packers' one release; minos.io/vagrant/ is minos-org/vagrant on GitHub Pages,
+         one catalog per box -->
+    <h3>Vagrant</h3>
+    <p>Boxes for VirtualBox: minos-core and minos-desktop on 22.04, 24.04 and 26.04.</p>
+    <div class="cmd"><code>$ vagrant box add https://minos.io/vagrant/core-24.04.json</code><code>$ vagrant init minos/core-24.04 &amp;&amp; vagrant up</code></div>
+    <h3>VirtualBox</h3>
+    <p>Without Vagrant, <a href="https://github.com/minos-org/packers/releases/latest">a box</a> unpacks to an appliance:</p>
+    <div class="cmd"><code>$ tar xf minos-core-24.04.box &amp;&amp; VBoxManage import box.ovf</code></div>
+    <h3>AWS and other clouds</h3>
+    <p>Start an Ubuntu LTS server and add minos to it:</p>
+    <div class="cmd"><code>$ sh &lt;(wget -qO- minos.io/s) core</code></div>
+    <h3>Docker</h3>
+    <p>minos-core goes into a plain Ubuntu container:</p>
+    <div class="cmd"><code>$ docker run -it ubuntu:24.04 bash</code><code># apt-get update &amp;&amp; apt-get install -y wget</code><code># sh &lt;(wget -qO- minos.io/s) core</code></div>
+  </section>
+
+  <section class="sec" id="principles" aria-labelledby="h-principles" data-name="principles" data-keys="philosophy why ideas values minimalism coherence stability control pluggable beauty">
+    <h2 id="h-principles">Why is it built this way?</h2>
+    <p class="lead">Six principles decide what goes in.</p>
+    <ol class="principles">
+      <li id="minimalism"><h3>Minimalism</h3><p class="line">use as few elements as possible but not less</p><p>A dependency is added when something breaks without it, never because it is nice to have; apt runs without recommends or suggests.</p></li>
+      <li id="coherence"><h3>Coherence</h3><p class="line">modularity and composition over generalization</p><p>Small tools that call each other, and one config file instead of one per tool.</p></li>
+      <li id="stability"><h3>Stability</h3><p class="line">incremental over revolutionary</p><p>minos rides Ubuntu LTS and rolls on top of it, with no named releases of its own. A change that works on the newest LTS must not break the older ones still supported.</p></li>
+      <li id="control"><h3>Control</h3><p class="line">everything is configurable; toggles over multiple choice</p><p>Every module of a settings package can be turned off with <code>dpkg-reconfigure minos-core-settings</code>, and a <code>~/.minos/not_override</code> file keeps your home untouched.</p></li>
+      <li id="pluggable"><h3>Pluggable</h3><p class="line">components are plugin based</p><p>The shell, tmux and vim each have a plugin manager: shundle, tundle and vundle.</p></li>
+      <li id="beauty"><h3>Beauty</h3><p class="line">subjective; mostly black for now</p></li>
+    </ol>
+    <p class="after">Keyboard over pointing, vi-like everywhere, working out of the box.</p>
+  </section>
+
+  <section class="sec" id="config" aria-labelledby="h-config" data-name="config" data-keys="settings configuration file wallpaper launcher terminal battery minos-config">
+    <h2 id="h-config">How is it configured?</h2>
+    <p class="lead">One file for everything: <code>/etc/minos/config</code>, and <code>~/.minos/config</code> for yours, in plain <code>key value</code> lines.</p>
+    <div class="cmd conf"><code>wallpaper       /usr/share/minos/wallpapers/sunlight.png</code><code>launcher        dmenu-launcher</code><code>terminal        x-terminal-emulator</code><code>file-manager    pcmanfm</code><code>pdf             zathura</code><code>network-manager cmst -d</code><code>battery-alerts  20,15,10</code></div>
+    <p>Read a value with <code>minos-config</code>:</p>
+    <div class="cmd"><code>$ minos-config wallpaper</code><code class="out">/usr/share/minos/wallpapers/sunlight.png</code></div>
+    <!-- NOT YET: minos.io/doc/config answers 404 today -->
+    <p>Every key: <a href="http://minos.io/doc/config">minos.io/doc/config</a></p>
+  </section>
+
+  <section class="sec" id="keys" aria-labelledby="h-keys" data-name="keys" data-keys="keyboard shortcuts bindings vi hjkl win alt altgr">
+    <h2 id="h-keys">Which keys do I need?</h2>
+    <p class="lead">Keyboard over pointing, vi-like everywhere.</p>
+    <dl class="keys">
+      <dt>Alt+Esc</dt><dd>launcher</dd>
+      <dt>Alt+Tab</dt><dd>window jumper</dd>
+      <dt>Win+Enter</dt><dd>terminal</dd>
+      <dt>Win+Space</dt><dd>scratchpad terminal</dd>
+      <dt>Win+h/j/k/l</dt><dd>focus</dd>
+      <dt>Win+Shift+h/j/k/l</dt><dd>move</dd>
+      <dt>Win+f</dt><dd>fullscreen</dd>
+      <dt>Win+1…0</dt><dd>workspaces</dd>
+      <dt>AltGr+f</dt><dd>file manager</dd>
+      <dt>AltGr+w/m/i</dt><dd>browser, mail and chat, once you install them</dd>
+      <dt>F1</dt><dd>help</dd>
+      <dt>Ctrl+Alt+l</dt><dd>lock</dd>
+      <dt>AltGr+n</dt><dd>network manager</dd>
+      <dt>PrtSc</dt><dd>screenshot</dd>
+    </dl>
+  </section>
+
+  <section class="sec" id="dev" aria-labelledby="h-dev" data-name="dev" data-keys="development packaging debian recipes launchpad git repositories contribute build">
+    <h2 id="h-dev">How is it developed?</h2>
+    <p class="lead">A rolling release over LTS: frequent, small updates to each supported Ubuntu LTS, and no named releases of its own.</p>
+    <h3>One package, two repositories</h3>
+    <p>Every package is the program (<code>foo</code>) and its packaging (<code>foo-deb</code>, only <code>debian/</code>), each in its own git repository under <a href="https://github.com/minos-org/">github.com/minos-org</a>. A package is accepted when the same packaging builds on every supported LTS: with few hands, one packaging per release is not an option.</p>
+    <h3>Recipes</h3>
+    <p>Launchpad mixes the two with a source recipe and builds the packages into the archive, <a href="https://launchpad.net/~minos-archive/+archive/main">ppa:minos-archive/main</a>:</p>
+    <div class="cmd"><code># git-build-recipe format 0.4 deb-version 1:{time}+git{revno}-minos</code><code>lp:~minos-archive/minos/+git/foo</code><code>nest-part deb lp:~minos-archive/minos/+git/foo-deb debian debian</code></div>
+    <h3>Checks</h3>
+    <p>Before a change ships, it is built and installed in clean containers of every supported release.</p>
+    <h3>Defaults</h3>
+    <p>Programs are chosen for good documentation, flexibility, configurability and few dependencies: composition over generalization, keyboard over pointing, graphical ones only when they are light. Behaviour: toggles over multiple choice, vi-like, working out of the box.</p>
+    <p>The whole story: <a href="https://javier.io/blog/en/2018/08/22/minos-a-tiling-wm-linux-distro.html#development">minos, a tiling wm linux distribution</a>.</p>
+  </section>
+
+  <section class="sec" id="history" aria-labelledby="h-history" data-name="history" data-keys="history past years old timeline releases">
+    <h2 id="h-history">Where does it come from?</h2>
+    <p class="lead">minos is old: a personal Ubuntu respin, worked on in spare time since about 2010.</p>
+    <ol class="years">
+      <li><b>2014</b> <span>its first packages: boot and login themes, artwork, the desktop tools</span></li>
+      <li><b>2015</b> <span>minos.io, and the installer <code>minos.io/s</code></span></li>
+      <li><b>2017</b> <span>the two metapackages, minos-core and minos-desktop; the first Vagrant boxes</span></li>
+      <li><b>2018</b> <span>installs onto a blank disk from any live USB; runs on Ubuntu 14.04, 16.04 and 18.04</span></li>
+      <li><b>2022</b> <span>20.04 in, 14.04 out</span></li>
+      <li><b>2026</b> <span>22.04, 24.04 and 26.04; cmdfound in place of static-get</span></li>
+    </ol>
+  </section>
+
+  <section class="sec" id="source" aria-labelledby="h-source" data-name="source" data-keys="code github launchpad packages links repository download">
+    <h2 id="h-source">Where is the source?</h2>
+    <dl class="links">
+      <dt>source</dt><dd><a href="https://github.com/minos-org/">github.com/minos-org</a></dd>
+      <dt>packages</dt><dd><a href="https://launchpad.net/~minos-archive/+archive/main">launchpad.net/~minos-archive/+archive/main</a></dd>
+      <dt>cmdfound</dt><dd><a href="https://github.com/javier-lopez/cmdfound">github.com/javier-lopez/cmdfound</a></dd>
+      <!-- NOT YET: minos.io/doc/config answers 404 today -->
+      <dt>config docs</dt><dd><a href="http://minos.io/doc/config">minos.io/doc/config</a></dd>
+      <dt>write-up</dt><dd><a href="https://javier.io/blog/en/2018/08/22/minos-a-tiling-wm-linux-distro.html">javier.io/blog/en/2018/08/22/minos-a-tiling-wm-linux-distro.html</a></dd>
+    </dl>
+  </section>
+
